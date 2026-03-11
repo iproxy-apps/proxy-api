@@ -1,0 +1,49 @@
+import { Prisma } from '@prisma/client'
+
+type Decimal = Prisma.Decimal
+
+export type UserType = 'CLIENT' | 'PROXY'
+
+export type FindUserByEmailResult = {
+  name: string
+  id: string
+  createdAt: Date
+  updatedAt: Date
+  email: string
+  password: string
+  phoneNumber: string | null
+  avatarUrl: string | null
+  userType: UserType
+  documentType: DocumentType | null
+  documentUrl: string | null
+  isVerified: boolean
+  rating: Decimal
+  totalTasksCompleted: number
+  totalTasksCreated: number
+  walletBalance: Decimal
+  termsAccepted: boolean
+  stripeCustomerId: string | null
+  stripeAccountId: string | null
+  isDeleted: boolean
+}
+
+export type UsersUpdateInput = {
+  userId?: string
+  name?: string
+  userType?: UserType
+  password?: string | null | undefined
+  avatarUrl?: string | null | undefined
+  phoneNumber?: string | null | undefined
+}
+
+export type AuthenticateServiceResponse = {
+  session: string
+}
+
+export type UpdateUserProfileRepositoryPayload = {
+  name: string
+  userType: UserType
+  password?: string
+  avatarUrl: string
+  phoneNumber: string
+}

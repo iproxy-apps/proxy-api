@@ -1,0 +1,132 @@
+import { Prisma } from '@prisma/client'
+import { Injectable } from '@nestjs/common'
+
+import { PrismaService } from 'src/prisma/prisma.service'
+
+import type {
+  FindUserByEmailResult,
+  UpdateUserProfileRepositoryPayload,
+  UsersUpdateInput,
+} from '../types'
+import type {
+  AuthRepositoryDTO,
+  TransactionHistoryTask,
+} from '../dtos/auth-repository.dto'
+
+type UsersCreateInput = Prisma.UsersCreateInput
+
+@Injectable()
+export class AuthRepository implements AuthRepositoryDTO {
+  constructor(private prisma: PrismaService) {}
+
+  async findByEmail(email: string): Promise<FindUserByEmailResult | null> {
+    return this.prisma.users.findUnique({
+      where: { email },
+    })
+  }
+
+  async create(data: UsersCreateInput): Promise<UsersCreateInput> {
+    return this.prisma.users.create({ data })
+  }
+
+  async findUserStripeCustomerId(userId: string): Promise<string | null> {
+    const user = await this.prisma.users.findUnique({
+      where: { id: userId },
+      select: { stripeCustomerId: true },
+    })
+
+    return user?.stripeCustomerId || null
+  }
+
+  async fetchUserDetailsById(
+    userId: string,
+  ): Promise<FindUserByEmailResult | null> {
+    return this.prisma.users.findUnique({ where: { id: userId } })
+  }
+
+  async updateTotalTasksCompleted(
+    userId: string,
+    totalTasksCompleted: number,
+  ): Promise<void> {
+    await this.prisma.users.update({
+      where: { id: userId },
+      data: { totalTasksCompleted },
+    })
+  }
+
+  async updateTotalTasksCreated(
+    userId: string,
+    totalTasksCreated: number,
+  ): Promise<void> {
+    await this.prisma.users.update({
+      where: { id: userId },
+      data: { totalTasksCreated },
+    })
+  }
+
+  async updateWalletBalance(
+    userId: string,
+    walletBalance: number,
+  ): Promise<void> {
+    await this.prisma.users.update({
+      where: { id: userId },
+      data: { walletBalance },
+    })
+  }
+
+  async updateStripeAccountId(
+    userId: string,
+    stripeAccountId: string,
+  ): Promise<void> {
+    await this.prisma.users.update({
+      where: { id: userId },
+      data: { stripeAccountId },
+    })
+  }
+
+  async fetchTasksCreatedByUser(
+    userId: string,
+  ): Promise<TransactionHistoryTask[]> {
+    return this.prisma.tasks.findMany({
+      where: { owner: userId },
+      select: {
+        id: true,
+        title: true,
+        description: true,
+        offeredPrice: true,
+        status: true,
+        createdAt: true,
+        completedAt: true,
+      },
+      orderBy: { createdAt: 'desc' },
+    })
+  }
+
+  async fetchTasksCompletedByUser(
+    userId: string,
+  ): Promise<TransactionHistoryTask[]> {
+    return this.prisma.tasks.findMany({
+      where: {
+        userTaskMappings: { some: { executorId: userId } },
+        status: 'completed',
+      },
+      select: {
+        id: true,
+        title: true,
+        description: true,
+        offeredPrice: true,
+        status: true,
+        createdAt: true,
+        completedAt: true,
+      },
+      orderBy: { completedAt: 'desc' },
+    })
+  }
+
+  async updateUserDetailsById(
+    userId: string,
+    data: UpdateUserProfileRepositoryPayload,
+  ): Promise<void> {
+    await this.prisma.users.update({ where: { id: userId }, data })
+  }
+}

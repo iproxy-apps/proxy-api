@@ -1,0 +1,30 @@
+{
+  "compilerOptions": {
+    "lib": ["es2024"],
+    "module": "commonjs",
+    "target": "es2024",
+    "moduleResolution": "node",
+    "resolvePackageJsonExports": false,
+    "esModuleInterop": true,
+    "isolatedModules": true,
+    "declaration": true,
+    "removeComments": true,
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "allowSyntheticDefaultImports": true,
+    "sourceMap": true,
+    "outDir": "./dist",
+    "baseUrl": "./",
+    "incremental": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "strictNullChecks": true,
+    "forceConsistentCasingInFileNames": true,
+    "noImplicitAny": false,
+    "strictBindCallApply": false,
+    "noFallthroughCasesInSwitch": false,
+    "paths": {
+      "src/*": ["src/*"]
+    }
+  }
+}

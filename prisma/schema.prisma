@@ -1,0 +1,139 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../node_modules/.prisma/client"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserType {
+  CLIENT
+  PROXY
+}
+
+enum DocumentType {
+  RG
+  CPF
+  CNPJ
+}
+
+enum TaskStatus {
+  available
+  accepted
+  on_the_way
+  in_progress
+  verification_required
+  completed
+  canceled
+}
+
+model Users {
+  id                  String        @id @default(uuid()) @db.Uuid
+  name                String
+  email               String        @unique
+  password            String
+  phoneNumber         String?
+  avatarUrl           String?
+  userType            UserType
+  documentType        DocumentType?
+  documentUrl         String?
+  isVerified          Boolean       @default(false)
+  rating              Decimal       @default(0)
+  totalTasksCompleted Int           @default(0)
+  totalTasksCreated   Int           @default(0)
+  walletBalance       Decimal       @default(0)
+  termsAccepted       Boolean       @default(false)
+  stripeCustomerId    String?
+  stripeAccountId     String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  userTasks Tasks[] @relation("UserTasks")
+  cards     Cards[]
+
+  isDeleted        Boolean           @default(false)
+  userTaskMappings UserTaskMapping[]
+
+  @@map("users")
+}
+
+model Tasks {
+  id String @id @default(uuid()) @db.Uuid
+
+  owner String @db.Uuid
+
+  title           String
+  description     String
+  locationLat     Decimal
+  locationLng     Decimal
+  locationAddress String
+
+  offeredPrice  Decimal  @db.Decimal(10, 2)
+  proxyEarnings Decimal? @db.Decimal(10, 2)
+  platformFee   Decimal? @db.Decimal(10, 2)
+
+  status TaskStatus @default(available)
+
+  proofImageUrl String?
+
+  startedAt   DateTime?
+  completedAt DateTime?
+  canceledAt  DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  ownerId Users @relation("UserTasks", fields: [owner], references: [id], onDelete: Cascade)
+
+  userTaskMappings UserTaskMapping[]
+  payments         Payments[]
+
+  @@map("tasks")
+}
+
+model Cards {
+  id String @id @default(uuid()) @db.Uuid
+
+  userId       String @db.Uuid
+  stripeCardId String
+  brand        String
+  last4        String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user Users @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("cards")
+}
+
+model UserTaskMapping {
+  taskId     String @id @db.Uuid
+  executorId String @db.Uuid // user id
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user Users @relation(fields: [executorId], references: [id], onDelete: Cascade)
+  task Tasks @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@map("user_task_mapping")
+}
+
+model Payments {
+  id String @id @default(uuid()) @db.Uuid
+
+  taskId        String  @db.Uuid
+  paymentIntent String
+  amount        Decimal @db.Decimal(10, 2)
+  refundId      String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  task Tasks @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@map("payments")
+}
