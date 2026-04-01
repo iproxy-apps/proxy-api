@@ -25,7 +25,7 @@ export const errorDictionary = {
     }),
 
     invalidCredentials: {
-      message: 'Credenciais inválidas fornecidas.',
+      message: 'Credenciais fornecidas são inválidas.',
       statusCode: HttpStatus.UNAUTHORIZED,
       errorCode: 'USER_INVALID_CREDENTIALS',
     } as const,
