@@ -58,11 +58,12 @@ export class StartTaskService {
 
     // need to charge the task owner
     try {
-      const paymentIntentCreation = await this.stripeService.createPaymentIntent({
-        savedCard,
-        amount: taskDetails.offeredPrice * 100,
-        customer: String(taskDetails.ownerId.stripeCustomerId),
-      })
+      const paymentIntentCreation =
+        await this.stripeService.createPaymentIntent({
+          savedCard,
+          amount: taskDetails.offeredPrice * 100,
+          customer: String(taskDetails.ownerId.stripeCustomerId),
+        })
 
       if (!paymentIntentCreation || paymentIntentCreation.id) {
         throw new AppException(errorDictionary.payment.paymentFailed)

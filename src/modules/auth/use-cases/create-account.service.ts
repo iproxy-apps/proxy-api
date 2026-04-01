@@ -39,8 +39,9 @@ export class CreateAccountService {
     try {
       const stripeCustomer = await this.stripeService.searchCustomer(email)
 
-      if (stripeCustomer.data.length) stripeCustomerId = stripeCustomer.data[0].id
-      else {
+      if (stripeCustomer.data.length) {
+        stripeCustomerId = stripeCustomer.data[0].id
+      } else {
         const newCustomer = await this.stripeService.createCustomer(email, name)
         stripeCustomerId = newCustomer.id
       }

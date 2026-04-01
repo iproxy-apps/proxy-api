@@ -15,6 +15,15 @@ import type {
 
 type UsersCreateInput = Prisma.UsersCreateInput
 
+type PasswordResetCode = {
+  id: string
+  userId: string
+  code: string
+  expiresAt: Date
+  used: boolean
+  createdAt: Date
+}
+
 @Injectable()
 export class AuthRepository implements AuthRepositoryDTO {
   constructor(private prisma: PrismaService) {}
@@ -128,5 +137,56 @@ export class AuthRepository implements AuthRepositoryDTO {
     data: UpdateUserProfileRepositoryPayload,
   ): Promise<void> {
     await this.prisma.users.update({ where: { id: userId }, data })
+  }
+
+  async createPasswordResetCode(
+    userId: string,
+    code: string,
+    expiresAt: Date,
+  ): Promise<void> {
+    await this.prisma.passwordResetCodes.create({
+      data: { userId, code, expiresAt },
+    })
+  }
+
+  async findValidPasswordResetCode(
+    userId: string,
+  ): Promise<PasswordResetCode | null> {
+    return this.prisma.passwordResetCodes.findFirst({
+      where: {
+        userId,
+        used: false,
+        expiresAt: { gt: new Date() },
+      },
+      orderBy: { createdAt: 'desc' },
+    })
+  }
+
+  async countRecentPasswordResetCodes(userId: string): Promise<number> {
+    const fifteenMinutesAgo = new Date(Date.now() - 15 * 60 * 1000)
+
+    return this.prisma.passwordResetCodes.count({
+      where: {
+        userId,
+        createdAt: { gte: fifteenMinutesAgo },
+      },
+    })
+  }
+
+  async markPasswordResetCodeAsUsed(codeId: string): Promise<void> {
+    await this.prisma.passwordResetCodes.update({
+      where: { id: codeId },
+      data: { used: true },
+    })
+  }
+
+  async updateUserPassword(
+    userId: string,
+    hashedPassword: string,
+  ): Promise<void> {
+    await this.prisma.users.update({
+      where: { id: userId },
+      data: { password: hashedPassword },
+    })
   }
 }

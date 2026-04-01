@@ -23,9 +23,7 @@ export interface AuthRepositoryDTO {
     userId: string,
     stripeAccountId: string,
   ) => Promise<void>
-  fetchTasksCreatedByUser: (
-    userId: string,
-  ) => Promise<TransactionHistoryTask[]>
+  fetchTasksCreatedByUser: (userId: string) => Promise<TransactionHistoryTask[]>
   fetchTasksCompletedByUser: (
     userId: string,
   ) => Promise<TransactionHistoryTask[]>

@@ -53,8 +53,9 @@ model Users {
   userTasks Tasks[] @relation("UserTasks")
   cards     Cards[]
 
-  isDeleted        Boolean           @default(false)
-  userTaskMappings UserTaskMapping[]
+  isDeleted          Boolean              @default(false)
+  userTaskMappings   UserTaskMapping[]
+  passwordResetCodes PasswordResetCodes[]
 
   @@map("users")
 }
@@ -136,4 +137,18 @@ model Payments {
   task Tasks @relation(fields: [taskId], references: [id], onDelete: Cascade)
 
   @@map("payments")
+}
+
+model PasswordResetCodes {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
+  code      String
+  expiresAt DateTime
+  used      Boolean  @default(false)
+
+  createdAt DateTime @default(now())
+
+  user Users @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("password_reset_codes")
 }

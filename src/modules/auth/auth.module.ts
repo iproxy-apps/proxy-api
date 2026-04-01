@@ -9,12 +9,19 @@ import { StripeModule } from 'src/stripe/stripe.module'
 import { PrismaService } from 'src/prisma/prisma.service'
 import { AuthRepository } from './repository/auth.repository'
 import { AuthenticateService } from './use-cases/authenticate.service'
+import { NotificationModule } from 'src/notification/notification.module'
 import { CreateAccountService } from './use-cases/create-account.service'
 import { UpdateProfileService } from './use-cases/update-profile.service'
+import { ResetPasswordService } from './use-cases/reset-password.service'
+import { ForgotPasswordService } from './use-cases/forgot-password.service'
+import { VerifyResetCodeService } from './use-cases/verify-reset-code.service'
 import { AuthenticateController } from './controllers/authenticate.controller'
 import { FetchUserDetailsService } from './use-cases/fetch-user-details.service'
 import { UpdateProfileController } from './controllers/update-profile.controller'
 import { CreateAccountController } from './controllers/create-account.controller'
+import { ResetPasswordController } from './controllers/reset-password.controller'
+import { ForgotPasswordController } from './controllers/forgot-password.controller'
+import { VerifyResetCodeController } from './controllers/verify-reset-code.controller'
 import { CreateMerchantAccountService } from './use-cases/create-merchant-account.service'
 import { FetchTransactionHistoryService } from './use-cases/fetch-transaction-history.service'
 import { CreateMerchantAccountController } from './controllers/create-merchant-account.controller'
@@ -41,6 +48,7 @@ import { FetchMerchantDashboardLinkController } from './controllers/fetch-mercha
       },
     }),
     StripeModule.forRoot(),
+    NotificationModule.forRoot(),
   ],
   providers: [
     EnvService,
@@ -49,7 +57,10 @@ import { FetchMerchantDashboardLinkController } from './controllers/fetch-mercha
     AuthRepository,
     AuthenticateService,
     CreateAccountService,
+    ResetPasswordService,
+    ForgotPasswordService,
     UpdateProfileService,
+    VerifyResetCodeService,
     FetchUserDetailsService,
     CreateMerchantAccountService,
     FetchTransactionHistoryService,
@@ -59,6 +70,9 @@ import { FetchMerchantDashboardLinkController } from './controllers/fetch-mercha
     AuthenticateController,
     CreateAccountController,
     UpdateProfileController,
+    ResetPasswordController,
+    ForgotPasswordController,
+    VerifyResetCodeController,
     CreateMerchantAccountController,
     FetchTransactionHistoryController,
     FetchMerchantDashboardLinkController,

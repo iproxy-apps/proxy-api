@@ -73,9 +73,7 @@ export class CreateMerchantAccountService {
 
       return { accountLinkUrl: link.url }
     } catch {
-      throw new AppException(
-        errorDictionary.user.merchantAccountCreationFailed,
-      )
+      throw new AppException(errorDictionary.user.merchantAccountCreationFailed)
     }
   }
 }
