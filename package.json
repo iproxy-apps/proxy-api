@@ -36,19 +36,19 @@
     "zod": "^4.3.4",
     "zod-validation-error": "^5.0.0",
     "dotenv": "^17.2.3",
-    "prisma": "^7.3.0"
-  },
-  "devDependencies": {
+    "prisma": "^7.3.0",
     "@nestjs/cli": "^11.0.0",
     "@nestjs/schematics": "^11.0.0",
+    "ts-node": "^10.9.2",
+    "tsconfig-paths": "^4.2.0",
+    "typescript": "^5.7.3"
+  },
+  "devDependencies": {
     "@types/express": "^5.0.0",
     "@types/multer": "^2.0.0",
     "@types/node": "^22.10.7",
     "@types/passport-jwt": "^4.0.1",
     "prettier": "^3.7.4",
-    "source-map-support": "^0.5.21",
-    "ts-node": "^10.9.2",
-    "tsconfig-paths": "^4.2.0",
-    "typescript": "^5.7.3"
+    "source-map-support": "^0.5.21"
   }
 }
