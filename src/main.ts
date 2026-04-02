@@ -11,6 +11,7 @@ async function bootstrap() {
 
   const port = app.get(EnvService).get('PORT') ?? 3333
 
+  console.log('🚀 ~ Starting server on port ', port)
   await app.listen(port)
 }
 
