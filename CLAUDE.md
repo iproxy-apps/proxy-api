@@ -10,6 +10,7 @@ Backend API for a task/service marketplace platform with Stripe-powered payments
 - **Validation**: Zod 4 (does not use class-validator)
 - **Authentication**: JWT RS256 (passport-jwt) with base64-encoded public/private keys
 - **Payments**: Stripe SDK (Connect with merchant accounts)
+- **Notifications**: AWS SES (email) and AWS SNS (SMS) via `@aws-sdk/client-ses` and `@aws-sdk/client-sns`
 - **Formatting**: Prettier (no semicolons, single quotes, trailing commas)
 
 ## Commands
@@ -50,6 +51,7 @@ src/
 ├── pipes/                     # ZodValidationPipe, multerOptions
 ├── prisma/                    # PrismaService (extends PrismaClient)
 ├── stripe/                    # StripeService and StripeModule (dynamic module)
+├── notification/              # NotificationService (AWS SES for email, SNS for SMS)
 └── modules/
     ├── auth/                  # Authentication, accounts, merchant (Stripe Connect)
     ├── tasks/                 # Full task lifecycle CRUD
@@ -90,7 +92,7 @@ modules/<name>/
 ### Database models (Prisma)
 
 - **Users**: Clients and proxies, with walletBalance, stripeCustomerId/stripeAccountId, soft delete (isDeleted)
-- **Tasks**: Lifecycle: `available → accepted → in_progress → verification_required → completed | canceled`
+- **Tasks**: Lifecycle: `available → accepted → on_the_way → in_progress → verification_required → completed | canceled`
 - **Cards**: Saved cards via Stripe (brand, last4, stripeCardId)
 - **UserTaskMapping**: Links executor (proxy) to a task
 - **Payments**: Payment intent and refund records
