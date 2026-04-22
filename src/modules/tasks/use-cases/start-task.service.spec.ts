@@ -49,6 +49,9 @@ const makeTaskWithOwner = () =>
     },
   })
 
+const makeReadyProxy = () =>
+  makeUser({ userType: 'PROXY', stripeAccountReady: true })
+
 describe('StartTaskService', () => {
   let service: StartTaskService
   let stripeService: StripeServiceMock
@@ -84,16 +87,6 @@ describe('StartTaskService', () => {
     fetchUserCardService.execute.mockResolvedValue({
       stripeCardId: 'pm_owner',
     } as unknown as Awaited<ReturnType<FetchUserCardService['execute']>>)
-
-  const mockSuccessfulPayment = () => {
-    stripeService.createPaymentIntent.mockResolvedValue({
-      id: 'pi_123',
-    } as Awaited<ReturnType<StripeService['createPaymentIntent']>>)
-    stripeService.confirmPaymentIntent.mockResolvedValue({
-      id: 'pi_123',
-      status: 'succeeded',
-    } as Awaited<ReturnType<StripeService['confirmPaymentIntent']>>)
-  }
 
   it('throws taskNotFound when the task does not exist', async () => {
     tasksRepository.fetchTaskById.mockResolvedValue(null)
@@ -136,49 +129,79 @@ describe('StartTaskService', () => {
     })
 
     expect(tasksRepository.updateTaskStatus).not.toHaveBeenCalled()
-    expect(tasksRepository.insertTaskUserMapping).not.toHaveBeenCalled()
   })
 
-  it('charges the owner and records the payment on the happy path', async () => {
+  it('throws userNotProxy when the PROXY has not completed Stripe onboarding', async () => {
     tasksRepository.fetchTaskById.mockResolvedValue(makeTaskWithOwner())
     fetchUserDetailsService.execute.mockResolvedValue(
-      makeUser({ userType: 'PROXY' }),
+      makeUser({ userType: 'PROXY', stripeAccountReady: false }),
     )
+
+    await expect(
+      service.execute({ taskId: 'task-1', userId: 'proxy-1' }),
+    ).rejects.toMatchObject({
+      errorCode: errorDictionary.user.userNotProxy.errorCode,
+    })
+
+    expect(tasksRepository.updateTaskStatus).not.toHaveBeenCalled()
+  })
+
+  it('creates a pending payment record BEFORE confirming and returns succeeded on happy path', async () => {
+    tasksRepository.fetchTaskById.mockResolvedValue(makeTaskWithOwner())
+    fetchUserDetailsService.execute.mockResolvedValue(makeReadyProxy())
     mockOwnerCard()
-    mockSuccessfulPayment()
+    stripeService.createPaymentIntent.mockResolvedValue({
+      id: 'pi_123',
+    } as Awaited<ReturnType<StripeService['createPaymentIntent']>>)
+    stripeService.confirmPaymentIntent.mockResolvedValue({
+      id: 'pi_123',
+      status: 'succeeded',
+    } as Awaited<ReturnType<StripeService['confirmPaymentIntent']>>)
 
-    await service.execute({ taskId: 'task-1', userId: 'proxy-1' })
+    const result = await service.execute({ taskId: 'task-1', userId: 'proxy-1' })
 
-    expect(tasksRepository.updateTaskStatus).toHaveBeenCalledWith({
-      taskId: 'task-1',
-      status: 'in_progress',
-      startedAt: expect.any(Date),
-    })
-    expect(tasksRepository.insertTaskUserMapping).toHaveBeenCalledWith(
-      'task-1',
-      'proxy-1',
-    )
-    expect(stripeService.createPaymentIntent).toHaveBeenCalledWith({
-      amount: 100 * 100,
-      savedCard: 'pm_owner',
-      customer: 'cus_owner',
-    })
-    expect(stripeService.confirmPaymentIntent).toHaveBeenCalledWith(
-      'pi_123',
-      'pm_owner',
-    )
+    expect(result).toEqual({ status: 'succeeded' })
+
+    // payment record is created before the confirmation call
+    const createPaymentOrder =
+      createPaymentRecordService.execute.mock.invocationCallOrder[0]
+    const confirmOrder =
+      stripeService.confirmPaymentIntent.mock.invocationCallOrder[0]
+    expect(createPaymentOrder).toBeLessThan(confirmOrder)
+
     expect(createPaymentRecordService.execute).toHaveBeenCalledWith({
-      amount: 100,
       taskId: 'task-1',
+      amount: 100,
       paymentIntent: 'pi_123',
     })
   })
 
+  it('returns requires_action with client_secret when 3DS is needed', async () => {
+    tasksRepository.fetchTaskById.mockResolvedValue(makeTaskWithOwner())
+    fetchUserDetailsService.execute.mockResolvedValue(makeReadyProxy())
+    mockOwnerCard()
+    stripeService.createPaymentIntent.mockResolvedValue({
+      id: 'pi_3ds',
+    } as Awaited<ReturnType<StripeService['createPaymentIntent']>>)
+    stripeService.confirmPaymentIntent.mockResolvedValue({
+      id: 'pi_3ds',
+      status: 'requires_action',
+      client_secret: 'pi_3ds_secret_abc',
+    } as Awaited<ReturnType<StripeService['confirmPaymentIntent']>>)
+
+    const result = await service.execute({ taskId: 'task-1', userId: 'proxy-1' })
+
+    expect(result).toEqual({
+      status: 'requires_action',
+      clientSecret: 'pi_3ds_secret_abc',
+    })
+    // payment record was still created as pending so webhooks can update it later
+    expect(createPaymentRecordService.execute).toHaveBeenCalledTimes(1)
+  })
+
   it('throws paymentFailed when payment intent creation returns no id', async () => {
     tasksRepository.fetchTaskById.mockResolvedValue(makeTaskWithOwner())
-    fetchUserDetailsService.execute.mockResolvedValue(
-      makeUser({ userType: 'PROXY' }),
-    )
+    fetchUserDetailsService.execute.mockResolvedValue(makeReadyProxy())
     mockOwnerCard()
     stripeService.createPaymentIntent.mockResolvedValue(
       {} as Awaited<ReturnType<StripeService['createPaymentIntent']>>,
@@ -190,22 +213,20 @@ describe('StartTaskService', () => {
       errorCode: errorDictionary.payment.paymentFailed.errorCode,
     })
 
-    expect(stripeService.confirmPaymentIntent).not.toHaveBeenCalled()
     expect(createPaymentRecordService.execute).not.toHaveBeenCalled()
+    expect(stripeService.confirmPaymentIntent).not.toHaveBeenCalled()
   })
 
-  it('throws paymentFailed when confirmation status is not succeeded', async () => {
+  it('throws paymentFailed when confirmation status is not succeeded nor requires_action', async () => {
     tasksRepository.fetchTaskById.mockResolvedValue(makeTaskWithOwner())
-    fetchUserDetailsService.execute.mockResolvedValue(
-      makeUser({ userType: 'PROXY' }),
-    )
+    fetchUserDetailsService.execute.mockResolvedValue(makeReadyProxy())
     mockOwnerCard()
     stripeService.createPaymentIntent.mockResolvedValue({
       id: 'pi_123',
     } as Awaited<ReturnType<StripeService['createPaymentIntent']>>)
     stripeService.confirmPaymentIntent.mockResolvedValue({
       id: 'pi_123',
-      status: 'requires_action',
+      status: 'requires_payment_method',
     } as Awaited<ReturnType<StripeService['confirmPaymentIntent']>>)
 
     await expect(
@@ -213,15 +234,11 @@ describe('StartTaskService', () => {
     ).rejects.toMatchObject({
       errorCode: errorDictionary.payment.paymentFailed.errorCode,
     })
-
-    expect(createPaymentRecordService.execute).not.toHaveBeenCalled()
   })
 
   it('throws paymentFailed when Stripe throws during payment intent creation', async () => {
     tasksRepository.fetchTaskById.mockResolvedValue(makeTaskWithOwner())
-    fetchUserDetailsService.execute.mockResolvedValue(
-      makeUser({ userType: 'PROXY' }),
-    )
+    fetchUserDetailsService.execute.mockResolvedValue(makeReadyProxy())
     mockOwnerCard()
     stripeService.createPaymentIntent.mockRejectedValue(
       new Error('stripe down'),

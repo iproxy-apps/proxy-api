@@ -168,6 +168,20 @@ export const errorDictionary = {
     } as const,
   },
 
+  webhook: {
+    invalidSignature: {
+      message: 'Assinatura do webhook inválida.',
+      statusCode: HttpStatus.BAD_REQUEST,
+      errorCode: 'WEBHOOK_INVALID_SIGNATURE',
+    } as const,
+
+    missingRawBody: {
+      message: 'Corpo da requisição do webhook ausente.',
+      statusCode: HttpStatus.BAD_REQUEST,
+      errorCode: 'WEBHOOK_MISSING_RAW_BODY',
+    } as const,
+  },
+
   file: {
     formatNotSupported: {
       message:

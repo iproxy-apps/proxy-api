@@ -28,6 +28,14 @@ enum TaskStatus {
   canceled
 }
 
+enum PaymentStatus {
+  pending
+  succeeded
+  failed
+  refunded
+  disputed
+}
+
 model Users {
   id                  String        @id @default(uuid()) @db.Uuid
   name                String
@@ -46,6 +54,7 @@ model Users {
   termsAccepted       Boolean       @default(false)
   stripeCustomerId    String?
   stripeAccountId     String?
+  stripeAccountReady  Boolean       @default(false)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now()) @updatedAt
@@ -126,9 +135,10 @@ model UserTaskMapping {
 model Payments {
   id String @id @default(uuid()) @db.Uuid
 
-  taskId        String  @db.Uuid
+  taskId        String        @db.Uuid
   paymentIntent String
-  amount        Decimal @db.Decimal(10, 2)
+  amount        Decimal       @db.Decimal(10, 2)
+  status        PaymentStatus @default(pending)
   refundId      String?
 
   createdAt DateTime @default(now())
@@ -137,6 +147,14 @@ model Payments {
   task Tasks @relation(fields: [taskId], references: [id], onDelete: Cascade)
 
   @@map("payments")
+}
+
+model StripeEvents {
+  id        String   @id
+  type      String
+  createdAt DateTime @default(now())
+
+  @@map("stripe_events")
 }
 
 model PasswordResetCodes {

@@ -23,6 +23,7 @@ export const makeUser = (
   updatedAt: new Date(),
   stripeCustomerId: null,
   totalTasksCompleted: 0,
+  stripeAccountReady: false,
   rating: new Prisma.Decimal(0),
   walletBalance: new Prisma.Decimal(0),
   ...overrides,

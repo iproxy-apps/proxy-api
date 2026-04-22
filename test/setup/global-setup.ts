@@ -40,6 +40,7 @@ export default async function globalSetup() {
     `JWT_PRIVATE_KEY=${privateKey}`,
     `STRIPE_SECRET_KEY=sk_test_dummy`,
     `STRIPE_PUBLIC_KEY=pk_test_dummy`,
+    `STRIPE_WEBHOOK_SECRET=whsec_test_dummy`,
     `AWS_SES_FROM_EMAIL=test@example.com`,
     `DEV_CALLBACK_URL=http://localhost:3000/callback`,
     `PROD_CALLBACK_URL=http://localhost:3000/callback`,

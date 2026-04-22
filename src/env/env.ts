@@ -10,6 +10,7 @@ export const envSchema = z.object({
   JWT_PUBLIC_KEY: z.string(),
   STRIPE_SECRET_KEY: z.string(),
   STRIPE_PUBLIC_KEY: z.string(),
+  STRIPE_WEBHOOK_SECRET: z.string(),
   DEV_CALLBACK_URL: z.string(),
   PROD_CALLBACK_URL: z.string(),
   AWS_REGION: z.string().default('us-east-1'),

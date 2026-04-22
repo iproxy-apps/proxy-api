@@ -9,6 +9,7 @@ import { PrismaService } from './prisma/prisma.service'
 import { TasksModule } from './modules/tasks/tasks.module'
 import { CardsModule } from './modules/cards/cards.module'
 import { PaymentsModule } from './modules/payments/payments.module'
+import { StripeWebhookModule } from './modules/stripe-webhook/stripe-webhook.module'
 
 @Module({
   providers: [PrismaService],
@@ -23,6 +24,7 @@ import { PaymentsModule } from './modules/payments/payments.module'
     TasksModule,
     CardsModule,
     PaymentsModule,
+    StripeWebhookModule,
   ],
 })
 export class AppModule {}

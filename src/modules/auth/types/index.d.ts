@@ -24,6 +24,7 @@ export type FindUserByEmailResult = {
   termsAccepted: boolean
   stripeCustomerId: string | null
   stripeAccountId: string | null
+  stripeAccountReady: boolean
   isDeleted: boolean
 }
 

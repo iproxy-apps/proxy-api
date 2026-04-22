@@ -27,4 +27,5 @@ export const createStripeServiceMock = (): jest.Mocked<StripeService> =>
     createDashboardLoginLink: jest
       .fn()
       .mockResolvedValue({ url: 'https://stripe.test/dashboard' }),
+    constructWebhookEvent: jest.fn(),
   }) as unknown as jest.Mocked<StripeService>

@@ -29,6 +29,6 @@ export class StartTaskController {
     const { taskId } = body
     const userId = user.sub
 
-    await this.startTaskService.execute({ taskId, userId })
+    return await this.startTaskService.execute({ taskId, userId })
   }
 }

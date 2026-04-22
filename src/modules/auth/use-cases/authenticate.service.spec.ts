@@ -30,6 +30,7 @@ const makeUser = async (
   updatedAt: new Date(),
   totalTasksCompleted: 0,
   stripeCustomerId: null,
+  stripeAccountReady: false,
   phoneNumber: '+5511999999999',
   rating: new Prisma.Decimal(0),
   walletBalance: new Prisma.Decimal(0),

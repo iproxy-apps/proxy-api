@@ -14,6 +14,7 @@ type CreateUserOverrides = {
   userType?: 'CLIENT' | 'PROXY'
   stripeAccountId?: string | null
   stripeCustomerId?: string | null
+  stripeAccountReady?: boolean
 }
 
 export type CreatedUser = {
@@ -39,6 +40,7 @@ export const createUser = async (
   const name = overrides.name ?? 'Test User'
   const userType = overrides.userType ?? 'CLIENT'
   const stripeAccountId = overrides.stripeAccountId ?? null
+  const stripeAccountReady = overrides.stripeAccountReady ?? userType === 'PROXY'
   const phoneNumber = overrides.phoneNumber ?? '+5511999999999'
   const email = overrides.email ?? `user-${Date.now()}-${Math.random()}@test.io`
   const passwordHash = await hash(overrides.password ?? 'password123', 8)
@@ -50,6 +52,7 @@ export const createUser = async (
       userType,
       phoneNumber,
       stripeAccountId,
+      stripeAccountReady,
       stripeCustomerId,
       isVerified: true,
       termsAccepted: true,

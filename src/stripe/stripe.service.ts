@@ -14,10 +14,20 @@ export class StripeService {
   constructor(
     @Inject('STRIPE_SECRET_KEY')
     private readonly apiKey: string,
+    @Inject('STRIPE_WEBHOOK_SECRET')
+    private readonly webhookSecret: string,
   ) {
     this.stripe = new Stripe(this.apiKey, {
       apiVersion: '2025-12-15.clover',
     })
+  }
+
+  constructWebhookEvent(rawBody: Buffer | string, signature: string): Stripe.Event {
+    return this.stripe.webhooks.constructEvent(
+      rawBody,
+      signature,
+      this.webhookSecret,
+    )
   }
 
   async searchCustomer(email: string) {

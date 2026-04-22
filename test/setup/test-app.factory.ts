@@ -22,6 +22,7 @@ const TRUNCATE_TABLES = [
   'tasks',
   'users',
   'payments',
+  'stripe_events',
   'user_task_mapping',
   'password_reset_codes',
 ]
@@ -39,7 +40,7 @@ export const createTestApp = async (): Promise<TestAppContext> => {
     .useValue(notificationMock)
     .compile()
 
-  const app = moduleRef.createNestApplication({ logger: false })
+  const app = moduleRef.createNestApplication({ logger: false, rawBody: true })
   app.useGlobalFilters(new HttpExceptionFilter())
   await app.init()
 
