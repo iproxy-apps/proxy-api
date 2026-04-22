@@ -25,6 +25,7 @@
     "noFallthroughCasesInSwitch": false,
     "paths": {
       "src/*": ["src/*"]
-    }
+    },
+    "types": ["node", "jest", "express", "multer"]
   }
 }

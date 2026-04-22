@@ -128,7 +128,6 @@ export type ValidateTaskData = {
 export type ValidateTaskCompletionData = {
   taskId: string
   status: TaskStatus
-  completedAt: Date
   platformFee: number
   proxyEarnings: number
 }

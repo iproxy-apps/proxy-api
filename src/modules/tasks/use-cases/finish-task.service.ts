@@ -62,7 +62,7 @@ export class FinishTaskService {
       filePath = `${taskId}/${filename}`
     }
 
-    // set task as verification required
+    // mark as awaiting client validation; completedAt records when the proxy finished
     await this.tasksRepository.updateTaskStatus({
       taskId,
       filePath,

@@ -29,42 +29,41 @@ export class CancelTaskService {
 
     // validations
     if (!taskDetails) throw new AppException(errorDictionary.tasks.taskNotFound)
-    if (taskDetails.status !== 'in_progress') {
-      throw new AppException(errorDictionary.tasks.taskNotAvailable)
-    }
     if (taskDetails.owner !== userId) {
       throw new AppException(errorDictionary.tasks.cannotCancelTask)
     }
 
-    // validate if task started at date is greater than 1 hour
+    // cancellation only allowed within the first hour after the task starts
     const isGreaterThanOneHour = differenceInHours(new Date(), taskDetails.startedAt as Date) >= 1 // prettier-ignore
     if (isGreaterThanOneHour) {
-      const paymentRecord = await this.fetchPaymentRecordService.execute(taskId) // prettier-ignore
-      if (paymentRecord) {
-        let refund: Awaited<ReturnType<StripeService['refundPayment']>>
-
-        try {
-          refund = await this.stripeService.refundPayment(paymentRecord.paymentIntent) // prettier-ignore
-
-          if (!refund || refund.status !== 'succeeded') {
-            throw new AppException(errorDictionary.payment.refundFailed)
-          }
-        } catch (error) {
-          if (error instanceof AppException) throw error
-          throw new AppException(errorDictionary.payment.refundFailed)
-        }
-
-        await this.tasksRepository.updateTaskStatus({
-          taskId,
-          status: 'canceled',
-          canceledAt: new Date(),
-        })
-
-        await this.updatePaymentRecordService.execute(taskId, {
-          ...paymentRecord,
-          refundId: refund.id,
-        })
-      }
+      throw new AppException(errorDictionary.tasks.cannotCancelTask)
     }
+
+    const paymentRecord = await this.fetchPaymentRecordService.execute(taskId)
+    if (!paymentRecord) return
+
+    let refund: Awaited<ReturnType<StripeService['refundPayment']>>
+
+    try {
+      refund = await this.stripeService.refundPayment(paymentRecord.paymentIntent) // prettier-ignore
+
+      if (!refund || refund.status !== 'succeeded') {
+        throw new AppException(errorDictionary.payment.refundFailed)
+      }
+    } catch (error) {
+      if (error instanceof AppException) throw error
+      throw new AppException(errorDictionary.payment.refundFailed)
+    }
+
+    await this.tasksRepository.updateTaskStatus({
+      taskId,
+      status: 'canceled',
+      canceledAt: new Date(),
+    })
+
+    await this.updatePaymentRecordService.execute(taskId, {
+      ...paymentRecord,
+      refundId: refund.id,
+    })
   }
 }

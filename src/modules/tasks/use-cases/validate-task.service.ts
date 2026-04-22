@@ -26,11 +26,6 @@ export class ValidateTaskService {
 
     // validations
     if (!taskDetails) throw new AppException(errorDictionary.tasks.taskNotFound)
-    if (taskDetails.status !== 'verification_required') {
-      throw new AppException(
-        errorDictionary.tasks.taskNotAvailableForValidation,
-      )
-    }
 
     if (taskDetails.owner !== userId) {
       throw new AppException(errorDictionary.tasks.cannotValidateTask)
@@ -53,7 +48,6 @@ export class ValidateTaskService {
       status: 'completed',
       platformFee: stripeFee,
       proxyEarnings: proxyFee,
-      completedAt: new Date(),
     })
 
     await this.updateTotalTasksCompletedService.execute({

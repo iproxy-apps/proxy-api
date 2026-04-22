@@ -91,6 +91,7 @@ export class TasksRepository implements TasksRepositoryDTO {
       data: {
         status: data.status,
         startedAt: data.startedAt,
+        completedAt: data.completedAt,
         canceledAt: data.canceledAt,
         proofImageUrl: data.filePath,
       },
@@ -159,12 +160,11 @@ export class TasksRepository implements TasksRepositoryDTO {
   async validateTaskCompletion(
     data: ValidateTaskCompletionData,
   ): Promise<void> {
-    const { taskId, status, completedAt, platformFee, proxyEarnings } = data
+    const { taskId, status, platformFee, proxyEarnings } = data
     await this.prisma.tasks.update({
       where: { id: taskId },
       data: {
         status,
-        completedAt,
         platformFee,
         proxyEarnings,
       },

@@ -65,7 +65,7 @@ export class StartTaskService {
           customer: String(taskDetails.ownerId.stripeCustomerId),
         })
 
-      if (!paymentIntentCreation || paymentIntentCreation.id) {
+      if (!paymentIntentCreation || !paymentIntentCreation.id) {
         throw new AppException(errorDictionary.payment.paymentFailed)
       }
 
