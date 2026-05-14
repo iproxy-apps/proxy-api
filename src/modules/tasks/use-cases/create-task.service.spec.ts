@@ -38,7 +38,13 @@ describe('CreateTaskService', () => {
   let updateTotalTasksCreatedService: UpdateTotalTasksCreatedServiceMock
 
   beforeEach(() => {
-    tasksRepository = { create: jest.fn() }
+    tasksRepository = {
+      create: jest
+        .fn()
+        .mockResolvedValue({ id: 'task-1' } as Awaited<
+          ReturnType<TasksRepository['create']>
+        >),
+    }
     createUserSourceService = { execute: jest.fn() }
     updateTotalTasksCreatedService = { execute: jest.fn() }
 
@@ -90,5 +96,11 @@ describe('CreateTaskService', () => {
       id: 'user-1',
       tasksCreated: 1,
     })
+  })
+
+  it('returns the id of the created task', async () => {
+    const result = await service.execute(makeInput())
+
+    expect(result).toEqual({ id: 'task-1' })
   })
 })

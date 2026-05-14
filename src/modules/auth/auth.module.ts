@@ -9,6 +9,9 @@ import { StripeModule } from 'src/stripe/stripe.module'
 import { PrismaService } from 'src/prisma/prisma.service'
 import { AuthRepository } from './repository/auth.repository'
 import { AuthenticateService } from './use-cases/authenticate.service'
+import { DeleteAccountService } from './use-cases/delete-account.service'
+import { TasksRepository } from '../tasks/repository/tasks.repository'
+import { DeleteAccountController } from './controllers/delete-account.controller'
 import { NotificationModule } from 'src/notification/notification.module'
 import { CreateAccountService } from './use-cases/create-account.service'
 import { UpdateProfileService } from './use-cases/update-profile.service'
@@ -55,7 +58,9 @@ import { FetchMerchantDashboardLinkController } from './controllers/fetch-mercha
     JwtStrategy,
     PrismaService,
     AuthRepository,
+    TasksRepository,
     AuthenticateService,
+    DeleteAccountService,
     CreateAccountService,
     ResetPasswordService,
     ForgotPasswordService,
@@ -69,6 +74,7 @@ import { FetchMerchantDashboardLinkController } from './controllers/fetch-mercha
   controllers: [
     AuthenticateController,
     CreateAccountController,
+    DeleteAccountController,
     UpdateProfileController,
     ResetPasswordController,
     ForgotPasswordController,

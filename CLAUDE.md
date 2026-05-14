@@ -5,12 +5,13 @@ Backend API for a task/service marketplace platform with Stripe-powered payments
 ## Stack
 
 - **Runtime**: Node.js with TypeScript (ES2024, strict mode)
-- **Framework**: NestJS 11 (CommonJS, decorators enabled; bootstrap uses `rawBody: true` for Stripe webhooks)
+- **Framework**: NestJS 11 (CommonJS, decorators enabled; bootstrap uses `rawBody: true` for Stripe webhooks; `app.enableCors()` in `main.ts`)
 - **ORM**: Prisma 7 with PostgreSQL adapter (`@prisma/adapter-pg`)
 - **Validation**: Zod 4 (does not use class-validator)
-- **Authentication**: JWT RS256 (passport-jwt) with base64-encoded public/private keys
-- **Payments**: Stripe SDK (Connect with merchant accounts) + webhooks for async state
-- **Notifications**: AWS SES (email) and AWS SNS (SMS) via `@aws-sdk/client-ses` and `@aws-sdk/client-sns`
+- **Authentication**: JWT RS256 (passport-jwt) with base64-encoded public/private keys; `JwtStrategy.validate` queries `Users.isDeleted` and rejects tokens of removed accounts
+- **Rate limiting**: `@nestjs/throttler` globally (100 req/min default, 5 req/min on `/auth/session` and `/auth/create`). `@SkipThrottle()` on the Stripe webhook controller. Bypassed entirely when `NODE_ENV=test`.
+- **Payments**: Stripe SDK (Connect with merchant accounts, `stripe.transfers.create` on validate) + webhooks for async state
+- **Notifications**: AWS SES (email) and AWS SNS (SMS) via `@aws-sdk/client-ses` and `@aws-sdk/client-sns` — currently only used by `forgot-password`
 - **Testing**: Jest (unit) + Testcontainers PostgreSQL (e2e) + supertest
 - **Formatting**: Prettier (no semicolons, single quotes, trailing commas)
 
@@ -63,10 +64,11 @@ src/
 ├── stripe/                    # StripeService and StripeModule (dynamic module)
 ├── notification/              # NotificationService (AWS SES for email, SNS for SMS)
 └── modules/
-    ├── auth/                  # Authentication, accounts, merchant (Stripe Connect)
+    ├── auth/                  # Authentication, accounts (incl. soft-delete), merchant (Stripe Connect)
     ├── tasks/                 # Full task lifecycle CRUD
-    ├── cards/                 # User payment methods
-    ├── payments/              # Payment records (intents, refunds)
+    ├── cards/                 # User payment methods (soft-deletable)
+    ├── payments/              # Payment records (intents, refunds) — internal services, no HTTP
+    ├── ratings/               # 1-rating-per-task, recomputes Users.rating as average
     └── stripe-webhook/        # Stripe webhook endpoint + event handlers
 
 scripts/
@@ -114,20 +116,22 @@ modules/<name>/
 
 ### Database models (Prisma)
 
-- **Users**: Clients and proxies, with `walletBalance`, `stripeCustomerId`/`stripeAccountId`, `stripeAccountReady` (true after `account.updated` webhook confirms charges+payouts enabled), soft delete (`isDeleted`).
-- **Tasks**: Lifecycle: `available → accepted → on_the_way → in_progress → verification_required → completed | canceled`. `completedAt` is set when the proxy finishes (`finish-task`); validation only updates status and fees.
-- **Cards**: Saved cards via Stripe (brand, last4, stripeCardId).
+- **Users**: Clients and proxies, with `walletBalance`, `stripeCustomerId`/`stripeAccountId`, `stripeAccountReady` (true after `account.updated` webhook confirms charges+payouts enabled), soft delete (`isDeleted`). On `DELETE /auth/account`, PII is anonymized (`name`, `email`, `phoneNumber`, `avatarUrl`, `documentUrl`, `documentType`) and `isDeleted` is set; deletion is blocked when the user has active tasks.
+- **Tasks**: Lifecycle: `available → accepted → on_the_way → in_progress → verification_required → completed | canceled | payout_failed`. `completedAt` is set when the proxy finishes (`finish-task`); validation updates status, fees, and the `transferId` of the Stripe Transfer created at that point. `payout_failed` is reached when a Stripe Transfer that succeeded later belongs to a payout that failed (see webhooks below).
+- **Cards**: Saved cards via Stripe (brand, last4, stripeCardId). Soft-deletable via `isDeleted`; `DELETE /card/:id` detaches the PaymentMethod on Stripe and marks the row.
 - **UserTaskMapping**: Links executor (proxy) to a task.
 - **Payments**: Payment record with `status` (`PaymentStatus` enum: `pending | succeeded | failed | refunded | disputed`). Created as `pending` by `start-task` **before** Stripe confirm, then flipped by webhooks.
+- **Ratings**: One rating per task (`taskId @unique`), with `raterId`/`ratedId`/`score (1-5)`/`comment?`. Inserted from `/tasks/validate` when a rating is included in the body; `RateProxyService` then writes the average of `score` back to `Users.rating`.
 - **StripeEvents**: Dedupe table — stores every processed Stripe event `id` so retries from Stripe don't double-apply side effects.
 - **PasswordResetCodes**: Rate-limited (3 per 15 min) hashed codes for password recovery.
 
 ### Stripe Connect
 
-- Clients pay via PaymentIntent with a saved card.
-- Proxies receive funds via merchant accounts (Stripe Connect Express).
-- Platform charges a `platformFee` and calculates `proxyEarnings` upon task validation.
-- Currency: BRL.
+- Clients pay via PaymentIntent with a saved card (full amount lands in the platform account).
+- On `/tasks/validate`, the platform creates a `stripe.transfers.create({ amount, destination: proxy.stripeAccountId, metadata.taskId })` to push `proxyEarnings` (in centavos) to the proxy's Connect account. The transfer id is persisted on `Tasks.transferId @unique`. If the proxy lacks `stripeAccountReady`/`stripeAccountId`, validate returns `PROXY_ACCOUNT_NOT_READY` (409) and no state changes.
+- `Tasks.platformFee` stores the 20% platform cut; `Tasks.proxyEarnings` stores the actual net paid to the proxy (`offeredPrice - stripeFee - platformFee`). The Stripe processing fee is not persisted — it is derivable.
+- `Users.walletBalance` is internal accounting that mirrors what was transferred; credited on validate, debited atomically on dispute reversal and payout-failed compensation.
+- Currency: BRL (amounts to Stripe are `* 100` cents).
 - Proxies can only accept tasks after `stripeAccountReady === true`.
 
 ### Stripe webhooks (`POST /stripe/webhook`)
@@ -140,7 +144,7 @@ modules/<name>/
   - `charge.refunded` → payment `refunded` + `refundId`
   - `charge.dispute.created` → payment `disputed`; **if task was already validated**, atomically reverse `proxyEarnings` from the executor's `walletBalance`
   - `account.updated` → flip `Users.stripeAccountReady`
-  - `payout.failed` → log-only (no automated compensation yet)
+  - `payout.failed` → compensation: lists balance transactions for the failed payout on the connected account, finds each task by `transferId`, calls `stripe.transfers.createReversal`, debits `walletBalance` by `proxyEarnings`, decrements `totalTasksCompleted`, and sets the task to `payout_failed` (clearing `transferId`). Errors per-transfer are logged and don't break the loop.
 - Unhandled event types are logged and return 200.
 
 ### 3DS / async payment flow
@@ -152,7 +156,7 @@ modules/<name>/
 { status: 'requires_action', clientSecret: string | null }
 ```
 
-When `requires_action` is returned, the frontend uses `clientSecret` to complete 3DS. The payment record already exists as `pending`; the eventual webhook (`payment_intent.succeeded` or `payment_intent.payment_failed`) finalizes state.
+When `requires_action` is returned, the frontend uses `clientSecret` to complete 3DS. The payment record already exists as `pending`; the eventual webhook (`payment_intent.succeeded` or `payment_intent.payment_failed`) finalizes state. The frontend can poll the current payment status via `GET /tasks/:id`, which embeds the `Payments` row under `payment`.
 
 ## Testing
 
@@ -187,3 +191,13 @@ npx prisma generate
 npx jest --clearCache
 rm -rf dist
 ```
+
+## graphify
+
+This project has a knowledge graph at graphify-out/ with god nodes, community structure, and cross-file relationships.
+
+Rules:
+- ALWAYS read graphify-out/GRAPH_REPORT.md before reading any source files, running grep/glob searches, or answering codebase questions. The graph is your primary map of the codebase.
+- IF graphify-out/wiki/index.md EXISTS, navigate it instead of reading raw files
+- For cross-module "how does X relate to Y" questions, prefer `graphify query "<question>"`, `graphify path "<A>" "<B>"`, or `graphify explain "<concept>"` over grep — these traverse the graph's EXTRACTED + INFERRED edges instead of scanning files
+- After modifying code, run `graphify update .` to keep the graph current (AST-only, no API cost).

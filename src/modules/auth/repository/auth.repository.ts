@@ -53,23 +53,17 @@ export class AuthRepository implements AuthRepositoryDTO {
     return this.prisma.users.findUnique({ where: { id: userId } })
   }
 
-  async updateTotalTasksCompleted(
-    userId: string,
-    totalTasksCompleted: number,
-  ): Promise<void> {
+  async updateTotalTasksCompleted(userId: string, by: number): Promise<void> {
     await this.prisma.users.update({
       where: { id: userId },
-      data: { totalTasksCompleted },
+      data: { totalTasksCompleted: { increment: by } },
     })
   }
 
-  async updateTotalTasksCreated(
-    userId: string,
-    totalTasksCreated: number,
-  ): Promise<void> {
+  async updateTotalTasksCreated(userId: string, by: number): Promise<void> {
     await this.prisma.users.update({
       where: { id: userId },
-      data: { totalTasksCreated },
+      data: { totalTasksCreated: { increment: by } },
     })
   }
 
@@ -137,6 +131,21 @@ export class AuthRepository implements AuthRepositoryDTO {
     data: UpdateUserProfileRepositoryPayload,
   ): Promise<void> {
     await this.prisma.users.update({ where: { id: userId }, data })
+  }
+
+  async softDeleteUser(userId: string): Promise<void> {
+    await this.prisma.users.update({
+      where: { id: userId },
+      data: {
+        isDeleted: true,
+        name: 'Conta removida',
+        email: `deleted-${userId}@deleted.local`,
+        phoneNumber: null,
+        avatarUrl: null,
+        documentUrl: null,
+        documentType: null,
+      },
+    })
   }
 
   async createPasswordResetCode(

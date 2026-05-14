@@ -6,6 +6,7 @@ import {
   Controller,
   RawBodyRequest,
 } from '@nestjs/common'
+import { SkipThrottle } from '@nestjs/throttler'
 
 import { AppException } from 'src/exception/app.exception'
 import { errorDictionary } from 'src/exception/error-dictionary'
@@ -13,6 +14,7 @@ import { DispatchStripeEventService } from '../use-cases/dispatch-stripe-event.s
 
 import type { Request } from 'express'
 
+@SkipThrottle()
 @Controller('/stripe/webhook')
 export class StripeWebhookController {
   constructor(private dispatchStripeEventService: DispatchStripeEventService) {}

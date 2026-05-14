@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git -C /Users/leandromartins/Documents/proxy-api log --oneline -20)",
+      "Bash(git -C /Users/leandromartins/Documents/proxy-api status)",
+      "Bash(npx eslint *)",
+      "Bash(docker info *)",
+      "Bash(docker compose *)",
+      "Bash(stripe listen *)",
+      "Bash(DATABASE_URL=\"postgresql://postgres:postgres@localhost:5432/proxy_api?schema=public\" npx prisma migrate dev --name add_cards_is_deleted --create-only)",
+      "Bash(docker exec *)"
+    ]
+  }
+}

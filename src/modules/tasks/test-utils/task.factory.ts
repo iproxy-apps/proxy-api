@@ -10,6 +10,8 @@ export const makeTaskDetails = (
   startedAt: null,
   owner: 'client-1',
   offeredPrice: 100,
+  proxyEarnings: null,
+  platformFee: null,
   description: 'desc',
   createdAt: new Date(),
   locationAddress: 'addr',

@@ -11,6 +11,7 @@ export const createStripeServiceMock = (): jest.Mocked<StripeService> =>
     attachPaymentMethodToCustomer: jest
       .fn()
       .mockResolvedValue({ id: 'pm_test_123' }),
+    detachPaymentMethod: jest.fn().mockResolvedValue({ id: 'pm_test_123' }),
     createPaymentIntent: jest.fn().mockResolvedValue({
       id: 'pi_test_123',
       status: 'requires_confirmation',
@@ -20,6 +21,9 @@ export const createStripeServiceMock = (): jest.Mocked<StripeService> =>
       status: 'succeeded',
     }),
     refundPayment: jest.fn().mockResolvedValue({ id: 're_test_123' }),
+    createTransfer: jest.fn().mockResolvedValue({ id: 'tr_test_123' }),
+    reverseTransfer: jest.fn().mockResolvedValue({ id: 'trr_test_123' }),
+    listPayoutTransactions: jest.fn().mockResolvedValue({ data: [] }),
     createMerchantAccount: jest.fn().mockResolvedValue({ id: 'acct_test_123' }),
     linkMerchantAccount: jest
       .fn()

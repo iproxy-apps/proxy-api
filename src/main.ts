@@ -7,6 +7,8 @@ import { HttpExceptionFilter } from './exception/http.exception'
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, { rawBody: true })
 
+  app.enableCors()
+
   app.useGlobalFilters(new HttpExceptionFilter())
 
   const port = app.get(EnvService).get('PORT') ?? 3333

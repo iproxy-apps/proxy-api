@@ -54,6 +54,13 @@ export const errorDictionary = {
       statusCode: HttpStatus.BAD_REQUEST,
       errorCode: 'MERCHANT_DASHBOARD_LINK_FAILED',
     } as const,
+
+    cannotDeleteWithActiveTasks: {
+      message:
+        'Você possui tarefas em andamento. Finalize ou cancele todas antes de excluir a conta.',
+      statusCode: HttpStatus.CONFLICT,
+      errorCode: 'USER_HAS_ACTIVE_TASKS',
+    } as const,
   },
 
   card: {
@@ -67,6 +74,18 @@ export const errorDictionary = {
       message: 'Nenhum cartão salvo encontrado para este usuário.',
       statusCode: HttpStatus.NOT_FOUND,
       errorCode: 'NO_SAVED_CARD_FOUND',
+    } as const,
+
+    cardNotFound: {
+      message: 'Cartão não encontrado.',
+      statusCode: HttpStatus.NOT_FOUND,
+      errorCode: 'CARD_NOT_FOUND',
+    } as const,
+
+    cannotDeleteCard: {
+      message: 'Você não tem permissão para remover este cartão.',
+      statusCode: HttpStatus.FORBIDDEN,
+      errorCode: 'CANNOT_DELETE_CARD',
     } as const,
   },
 
@@ -124,6 +143,19 @@ export const errorDictionary = {
       message: 'Você não tem permissão para cancelar esta tarefa.',
       statusCode: HttpStatus.FORBIDDEN,
       errorCode: 'CANNOT_CANCEL_TASK',
+    } as const,
+
+    proxyAccountNotReady: {
+      message:
+        'O proxy ainda não concluiu o onboarding do Stripe e não pode receber pagamentos.',
+      statusCode: HttpStatus.CONFLICT,
+      errorCode: 'PROXY_ACCOUNT_NOT_READY',
+    } as const,
+
+    transferFailed: {
+      message: 'Falha ao transferir o valor da tarefa para o proxy.',
+      statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
+      errorCode: 'TASK_TRANSFER_FAILED',
     } as const,
   },
 

@@ -10,6 +10,8 @@ import type { SessionPayload } from 'src/modules/auth/utils/jwt.strategy'
 
 const validateTaskBodySchema = z.object({
   taskId: z.string(),
+  rating: z.number().int().min(1).max(5).optional(),
+  comment: z.string().trim().min(1).max(500).optional(),
 })
 
 type ValidateTaskBodySchema = z.infer<typeof validateTaskBodySchema>
@@ -26,9 +28,9 @@ export class ValidateTaskController {
     body: ValidateTaskBodySchema,
     @User() user: SessionPayload,
   ) {
-    const { taskId } = body
+    const { taskId, rating, comment } = body
     const userId = user.sub
 
-    await this.validateTaskService.execute({ taskId, userId })
+    await this.validateTaskService.execute({ taskId, userId, rating, comment })
   }
 }

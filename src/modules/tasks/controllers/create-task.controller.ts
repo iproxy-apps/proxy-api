@@ -51,7 +51,7 @@ export class CreateTaskController {
       cardDetails,
     } = body
 
-    await this.createTaskService.execute({
+    return this.createTaskService.execute({
       city,
       title,
       state,

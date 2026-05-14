@@ -14,7 +14,7 @@ export class CreateTaskService {
     private updateTotalTasksCreatedService: UpdateTotalTasksCreatedService,
   ) {}
 
-  async execute(data: CreateTaskData): Promise<void> {
+  async execute(data: CreateTaskData): Promise<{ id: string }> {
     const {
       city,
       title,
@@ -33,7 +33,7 @@ export class CreateTaskService {
 
     const locationAddress = `${street}, ${city} - ${state}, ${zipCode}`
 
-    await this.tasksRepository.create({
+    const task = await this.tasksRepository.create({
       title,
       userId,
       description,
@@ -53,5 +53,7 @@ export class CreateTaskService {
       id: userId,
       tasksCreated: 1, // Increment by 1 for each created task
     })
+
+    return { id: task.id }
   }
 }

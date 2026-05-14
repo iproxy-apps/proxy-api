@@ -59,6 +59,10 @@ export class StripeService {
     })
   }
 
+  async detachPaymentMethod(paymentMethodId: string) {
+    return await this.stripe.paymentMethods.detach(paymentMethodId)
+  }
+
   async createPaymentIntent({
     amount,
     customer,
@@ -84,6 +88,30 @@ export class StripeService {
     return await this.stripe.refunds.create({
       payment_intent: paymentIntentId,
     })
+  }
+
+  async createTransfer(data: {
+    amount: number
+    destination: string
+    metadata?: Record<string, string>
+  }) {
+    return await this.stripe.transfers.create({
+      amount: data.amount,
+      currency: 'brl',
+      destination: data.destination,
+      metadata: data.metadata,
+    })
+  }
+
+  async reverseTransfer(transferId: string) {
+    return await this.stripe.transfers.createReversal(transferId)
+  }
+
+  async listPayoutTransactions(payoutId: string, accountId: string) {
+    return await this.stripe.balanceTransactions.list(
+      { payout: payoutId, expand: ['data.source'] },
+      { stripeAccount: accountId },
+    )
   }
 
   async createMerchantAccount(data: CreateMerchantAccountData) {

@@ -1,4 +1,5 @@
 import { Body, Post, UsePipes, HttpCode, Controller } from '@nestjs/common'
+import { Throttle } from '@nestjs/throttler'
 import { z } from 'zod'
 
 import { ZodValidationPipe } from 'src/pipes/zod-validation.pipe'
@@ -29,6 +30,7 @@ export class CreateAccountController {
 
   @Post()
   @HttpCode(200)
+  @Throttle({ auth: { limit: 5, ttl: 60_000 } })
   @UsePipes(new ZodValidationPipe(createAccountBodySchema))
   async handle(@Body() body: CreateAccountBodySchema) {
     return await this.createAccountService.execute(body)

@@ -3,6 +3,7 @@ import { MulterModule } from '@nestjs/platform-express'
 
 import { EnvService } from 'src/env/env.service'
 import { StripeModule } from 'src/stripe/stripe.module'
+import { RatingsModule } from '../ratings/ratings.module'
 import { PrismaService } from 'src/prisma/prisma.service'
 import { TasksRepository } from './repository/tasks.repository'
 import { StartTaskService } from './use-cases/start-task.service'
@@ -16,11 +17,15 @@ import { CardsRepository } from '../cards/repositories/cards.repository'
 import { StartTaskController } from './controllers/start-task.controller'
 import { CreateTaskController } from './controllers/create-task.controller'
 import { FetchTasksController } from './controllers/fetch-tasks.controller'
+import { FetchTaskByIdService } from './use-cases/fetch-task-by-id.service'
+import { FetchActiveTasksService } from './use-cases/fetch-active-tasks.service'
 import { FinishTaskController } from './controllers/finish-task.controller'
 import { CancelTaskController } from './controllers/cancel-task.controller'
 import { PaymentsRepository } from '../payments/repository/payments.repository'
 import { ValidateTaskController } from './controllers/validate-task.controller'
 import { FetchUserCardService } from '../cards/use-cases/fetch-user-card.service'
+import { FetchTaskByIdController } from './controllers/fetch-task-by-id.controller'
+import { FetchActiveTasksController } from './controllers/fetch-active-tasks.controller'
 import { FetchUserDetailsService } from '../auth/use-cases/fetch-user-details.service'
 import { UpdateWalletBalanceService } from '../auth/use-cases/update-wallet-balance.service'
 import { CreateUserSourceService } from '../cards/use-cases/create-user-payment-method.service'
@@ -33,7 +38,11 @@ import { FetchPaymentRecordService } from '../payments/use-cases/fetch-payment-r
 import { UpdatePaymentRecordService } from '../payments/use-cases/update-payment-record.service'
 
 @Module({
-  imports: [StripeModule.forRoot(), MulterModule.register(multerOptions)],
+  imports: [
+    StripeModule.forRoot(),
+    MulterModule.register(multerOptions),
+    RatingsModule,
+  ],
   providers: [
     EnvService,
     PrismaService,
@@ -44,10 +53,12 @@ import { UpdatePaymentRecordService } from '../payments/use-cases/update-payment
     CreateTaskService,
     CancelTaskService,
     FetchTasksService,
+    FetchActiveTasksService,
     FinishTaskService,
     PaymentsRepository,
     ValidateTaskService,
     FetchUserCardService,
+    FetchTaskByIdService,
     FetchUserDetailsService,
     CreateUserSourceService,
     FetchPaymentRecordService,
@@ -61,9 +72,11 @@ import { UpdatePaymentRecordService } from '../payments/use-cases/update-payment
     StartTaskController,
     CreateTaskController,
     FetchTasksController,
+    FetchActiveTasksController,
     FinishTaskController,
     CancelTaskController,
     ValidateTaskController,
+    FetchTaskByIdController,
   ],
 })
 export class TasksModule {}

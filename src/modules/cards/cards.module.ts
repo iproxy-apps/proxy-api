@@ -6,7 +6,9 @@ import { PrismaService } from 'src/prisma/prisma.service'
 import { CardsRepository } from './repositories/cards.repository'
 import { AuthRepository } from '../auth/repository/auth.repository'
 import { FetchUserCardService } from './use-cases/fetch-user-card.service'
+import { DeleteUserCardService } from './use-cases/delete-user-card.service'
 import { FetchUserCardController } from './controllers/fetch-user-card.controller'
+import { DeleteUserCardController } from './controllers/delete-user-card.controller'
 import { CreateUserSourceService } from './use-cases/create-user-payment-method.service'
 import { CreateUserPaymentMethodController } from './controllers/create-user-payment-method.controller'
 
@@ -18,8 +20,13 @@ import { CreateUserPaymentMethodController } from './controllers/create-user-pay
     AuthRepository,
     CardsRepository,
     FetchUserCardService,
+    DeleteUserCardService,
     CreateUserSourceService,
   ],
-  controllers: [FetchUserCardController, CreateUserPaymentMethodController],
+  controllers: [
+    FetchUserCardController,
+    DeleteUserCardController,
+    CreateUserPaymentMethodController,
+  ],
 })
 export class CardsModule {}

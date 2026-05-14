@@ -6,6 +6,7 @@ export type TaskStatus =
   | 'verification_required'
   | 'completed'
   | 'canceled'
+  | 'payout_failed'
 
 export type CreateTaskData = {
   userId: string
@@ -55,7 +56,7 @@ export type UpdateTaskStatusData = {
 
 export type FetchTaskByIdData = {
   taskId: string
-  status: TaskStatus
+  status?: TaskStatus
 }
 
 export type FetchTasksResult = {
@@ -64,6 +65,8 @@ export type FetchTasksResult = {
   locationLat: Decimal
   locationLng: Decimal
   offeredPrice: Decimal
+  proxyEarnings: Decimal | null
+  platformFee: Decimal | null
   id: string
   locationAddress: string
   status: TaskStatus
@@ -127,6 +130,8 @@ export type FetchTaskUserMappingQueryData = {
 export type ValidateTaskData = {
   taskId: string
   userId: string
+  rating?: number
+  comment?: string
 }
 
 export type ValidateTaskCompletionData = {
@@ -134,6 +139,7 @@ export type ValidateTaskCompletionData = {
   status: TaskStatus
   platformFee: number
   proxyEarnings: number
+  transferId?: string
 }
 
 export type CancelTaskData = {

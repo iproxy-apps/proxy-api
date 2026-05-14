@@ -1,4 +1,5 @@
 import z from 'zod'
+import { Throttle } from '@nestjs/throttler'
 import { Post, Body, HttpCode, UsePipes, Controller } from '@nestjs/common'
 
 import { ZodValidationPipe } from 'src/pipes/zod-validation.pipe'
@@ -17,6 +18,7 @@ export class AuthenticateController {
 
   @Post()
   @HttpCode(200)
+  @Throttle({ auth: { limit: 5, ttl: 60_000 } })
   @UsePipes(new ZodValidationPipe(authenticateBodySchema))
   async handle(@Body() body: AuthenticateBodySchema) {
     const { email, password } = body

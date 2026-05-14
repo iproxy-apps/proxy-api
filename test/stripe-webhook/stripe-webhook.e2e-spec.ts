@@ -188,6 +188,71 @@ describe('POST /stripe/webhook (e2e)', () => {
     expect(updated?.stripeAccountReady).toBe(true)
   })
 
+  it('reverses the transfer and rolls back the executor on payout.failed', async () => {
+    const owner = await createUser(ctx.app, ctx.prisma, {
+      email: 'owner-payout@test.io',
+    })
+    const proxy = await createUser(ctx.app, ctx.prisma, {
+      email: 'proxy-payout@test.io',
+      userType: 'PROXY',
+      stripeAccountId: 'acct_payout',
+    })
+    const task = await ctx.prisma.tasks.create({
+      data: {
+        owner: owner.id,
+        title: 'Task',
+        description: 'desc',
+        locationLat: 0,
+        locationLng: 0,
+        locationAddress: 'addr',
+        offeredPrice: 100,
+        proxyEarnings: 75.62,
+        platformFee: 20,
+        status: 'completed',
+        transferId: 'tr_payout_1',
+      },
+    })
+    await ctx.prisma.userTaskMapping.create({
+      data: { taskId: task.id, executorId: proxy.id },
+    })
+    await ctx.prisma.users.update({
+      where: { id: proxy.id },
+      data: { walletBalance: 200, totalTasksCompleted: 3 },
+    })
+
+    ctx.stripeMock.listPayoutTransactions.mockResolvedValueOnce({
+      data: [{ source: { object: 'transfer', id: 'tr_payout_1' } }],
+    } as unknown as Awaited<
+      ReturnType<typeof ctx.stripeMock.listPayoutTransactions>
+    >)
+
+    ctx.stripeMock.constructWebhookEvent.mockReturnValueOnce({
+      id: 'evt_payout_failed_1',
+      type: 'payout.failed',
+      account: 'acct_payout',
+      data: {
+        object: { id: 'po_payout_1', failure_code: 'account_closed' },
+      },
+    } as unknown as Stripe.Event)
+
+    const response = await postWebhook()
+    expect(response.status).toBe(200)
+
+    expect(ctx.stripeMock.reverseTransfer).toHaveBeenCalledWith('tr_payout_1')
+
+    const updatedTask = await ctx.prisma.tasks.findUnique({
+      where: { id: task.id },
+    })
+    expect(updatedTask?.status).toBe('payout_failed')
+    expect(updatedTask?.transferId).toBeNull()
+
+    const updatedProxy = await ctx.prisma.users.findUnique({
+      where: { id: proxy.id },
+    })
+    expect(Number(updatedProxy?.walletBalance)).toBeCloseTo(200 - 75.62, 1)
+    expect(updatedProxy?.totalTasksCompleted).toBe(2)
+  })
+
   it('processes the same event only once (idempotency)', async () => {
     const owner = await createUser(ctx.app, ctx.prisma)
     const task = await createTask(ctx.prisma, owner.id, {

@@ -27,7 +27,13 @@ export class CardsRepository implements CardsRepositoryDTO {
 
   async fetchUserCard(userId: string): Promise<UserCard | null> {
     return await this.prisma.cards.findFirst({
-      where: { userId: userId },
+      where: { userId: userId, isDeleted: false },
+    })
+  }
+
+  async fetchCardById(id: string): Promise<UserCard | null> {
+    return await this.prisma.cards.findFirst({
+      where: { id, isDeleted: false },
     })
   }
 
@@ -40,6 +46,13 @@ export class CardsRepository implements CardsRepositoryDTO {
         last4,
         stripeCardId,
       },
+    })
+  }
+
+  async softDeleteCard(id: string): Promise<void> {
+    await this.prisma.cards.update({
+      where: { id },
+      data: { isDeleted: true },
     })
   }
 }

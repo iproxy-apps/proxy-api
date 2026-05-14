@@ -58,6 +58,7 @@ describe('POST /tasks/create (e2e)', () => {
     })
 
     expect(tasks).toHaveLength(1)
+    expect(response.body).toEqual({ id: tasks[0].id })
     expect(tasks[0]).toMatchObject({
       title: taskPayload.title,
       description: taskPayload.description,
@@ -70,6 +71,28 @@ describe('POST /tasks/create (e2e)', () => {
       where: { id: user.id },
     })
     expect(updatedUser?.totalTasksCreated).toBe(1)
+  })
+
+  it('increments the totalTasksCreated counter on each call (not overwrite)', async () => {
+    const user = await createUser(ctx.app, ctx.prisma)
+
+    await request(ctx.app.getHttpServer())
+      .post('/tasks/create')
+      .set('Authorization', `Bearer ${user.token}`)
+      .send(taskPayload)
+    await request(ctx.app.getHttpServer())
+      .post('/tasks/create')
+      .set('Authorization', `Bearer ${user.token}`)
+      .send(taskPayload)
+    await request(ctx.app.getHttpServer())
+      .post('/tasks/create')
+      .set('Authorization', `Bearer ${user.token}`)
+      .send(taskPayload)
+
+    const updatedUser = await ctx.prisma.users.findUnique({
+      where: { id: user.id },
+    })
+    expect(updatedUser?.totalTasksCreated).toBe(3)
   })
 
   it('rejects payloads with invalid schema', async () => {

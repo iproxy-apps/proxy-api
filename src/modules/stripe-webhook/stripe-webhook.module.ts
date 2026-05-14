@@ -3,6 +3,8 @@ import { Module } from '@nestjs/common'
 import { StripeModule } from 'src/stripe/stripe.module'
 import { PrismaService } from 'src/prisma/prisma.service'
 
+import { AuthRepository } from '../auth/repository/auth.repository'
+import { TasksRepository } from '../tasks/repository/tasks.repository'
 import { StripeEventsRepository } from './repository/stripe-events.repository'
 import { StripeWebhookController } from './controllers/stripe-webhook.controller'
 import { HandlePayoutFailedService } from './use-cases/handle-payout-failed.service'
@@ -17,6 +19,8 @@ import { HandlePaymentSucceededService } from './use-cases/handle-payment-succee
   imports: [StripeModule.forRoot()],
   providers: [
     PrismaService,
+    AuthRepository,
+    TasksRepository,
     StripeEventsRepository,
     HandlePayoutFailedService,
     HandlePaymentFailedService,
