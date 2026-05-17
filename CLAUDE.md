@@ -103,6 +103,15 @@ modules/<name>/
 - **Types in `types/index.d.ts`**: Module domain types live in declaration files.
 - **Unit spec co-located**: `<name>.service.spec.ts` sits next to the service.
 
+### Route surface
+
+Public route map (auth required everywhere except where noted):
+
+- **Auth** — `POST /auth/session` (public, throttled 5/min), `POST /auth/create` (public, throttled 5/min), `POST /auth/forgot-password` (public), `POST /auth/verify-reset-code` (public), `POST /auth/reset-password` (public), `POST /auth/update-profile`, `POST /auth/merchant-account`, `GET /auth/merchant-dashboard`, `GET /auth/transaction-history`, `DELETE /auth/account` (soft delete, blocked by active tasks).
+- **Tasks** — `POST /tasks/create` (returns `{ id }`), `GET /tasks/fetch?city=&page=` (paginated available tasks), `GET /tasks/active` (tasks where caller is owner or executor and status ∈ `accepted | on_the_way | in_progress | verification_required`), `GET /tasks/:id` (single task with embedded `payment`), `POST /tasks/start`, `POST /tasks/finish` (multipart, JPG/PNG/WEBP), `POST /tasks/validate` (accepts optional `rating` 1–5 and `comment` ≤500 chars), `POST /tasks/cancel`.
+- **Cards** — `POST /card/create`, `GET /card/fetch`, `DELETE /card/:id` (detaches PaymentMethod on Stripe + soft delete).
+- **Stripe** — `POST /stripe/webhook` (public, signature verified, `@SkipThrottle()`).
+
 ### Code conventions
 
 - Zod schemas are defined inline in controllers (not in separate files).
