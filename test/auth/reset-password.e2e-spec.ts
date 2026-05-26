@@ -21,15 +21,38 @@ describe('POST /auth/reset-password (e2e)', () => {
     await resetDatabase(ctx.prisma)
   })
 
-  const insertCode = async (userId: string, plaintext: string) => {
+  const insertCode = async (
+    userId: string,
+    plaintext: string,
+    overrides: { state?: 'pending' | 'verified' | 'used' } = {},
+  ) => {
     return ctx.prisma.passwordResetCodes.create({
       data: {
         userId,
         code: await hash(plaintext, 8),
         expiresAt: new Date(Date.now() + 15 * 60 * 1000),
+        state: overrides.state ?? 'verified',
       },
     })
   }
+
+  it('returns invalidOrExpiredCode when the code has not been verified yet', async () => {
+    const user = await createUser(ctx.app, ctx.prisma, { email: 'u@test.io' })
+    await insertCode(user.id, '654321', { state: 'pending' })
+
+    const response = await request(ctx.app.getHttpServer())
+      .post('/auth/reset-password')
+      .send({
+        email: user.email,
+        code: '654321',
+        newPassword: 'my-new-password',
+      })
+
+    expect(response.status).toBe(400)
+    expect(response.body).toMatchObject({
+      errorCode: 'PASSWORD_RESET_INVALID_CODE',
+    })
+  })
 
   it('returns invalidOrExpiredCode when the code does not match', async () => {
     const user = await createUser(ctx.app, ctx.prisma, { email: 'u@test.io' })
@@ -49,7 +72,7 @@ describe('POST /auth/reset-password (e2e)', () => {
     })
   })
 
-  it('updates the password, marks the code as used and returns success', async () => {
+  it('updates the password and atomically marks the code as used', async () => {
     const user = await createUser(ctx.app, ctx.prisma, { email: 'u@test.io' })
     const code = await insertCode(user.id, '654321')
 
@@ -77,6 +100,45 @@ describe('POST /auth/reset-password (e2e)', () => {
     const updatedCode = await ctx.prisma.passwordResetCodes.findUnique({
       where: { id: code.id },
     })
-    expect(updatedCode?.used).toBe(true)
+    expect(updatedCode?.state).toBe('used')
+  })
+
+  it('rejects reuse of a code that has already been used to reset the password', async () => {
+    const user = await createUser(ctx.app, ctx.prisma, { email: 'u@test.io' })
+    await insertCode(user.id, '654321')
+
+    // First reset succeeds.
+    const first = await request(ctx.app.getHttpServer())
+      .post('/auth/reset-password')
+      .send({
+        email: user.email,
+        code: '654321',
+        newPassword: 'first-password',
+      })
+    expect(first.status).toBe(200)
+
+    // Second reset with the same code MUST fail.
+    const second = await request(ctx.app.getHttpServer())
+      .post('/auth/reset-password')
+      .send({
+        email: user.email,
+        code: '654321',
+        newPassword: 'second-password',
+      })
+    expect(second.status).toBe(400)
+    expect(second.body).toMatchObject({
+      errorCode: 'PASSWORD_RESET_INVALID_CODE',
+    })
+
+    // The password must still be the FIRST one.
+    const updatedUser = await ctx.prisma.users.findUnique({
+      where: { id: user.id },
+    })
+    await expect(
+      compare('first-password', updatedUser!.password),
+    ).resolves.toBe(true)
+    await expect(
+      compare('second-password', updatedUser!.password),
+    ).resolves.toBe(false)
   })
 })

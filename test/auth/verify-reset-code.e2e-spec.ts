@@ -21,12 +21,17 @@ describe('POST /auth/verify-reset-code (e2e)', () => {
     await resetDatabase(ctx.prisma)
   })
 
-  const insertCode = async (userId: string, plaintext: string) => {
-    await ctx.prisma.passwordResetCodes.create({
+  const insertCode = async (
+    userId: string,
+    plaintext: string,
+    overrides: { state?: 'pending' | 'verified' | 'used' } = {},
+  ) => {
+    return ctx.prisma.passwordResetCodes.create({
       data: {
         userId,
         code: await hash(plaintext, 8),
         expiresAt: new Date(Date.now() + 15 * 60 * 1000),
+        state: overrides.state ?? 'pending',
       },
     })
   }
@@ -78,9 +83,9 @@ describe('POST /auth/verify-reset-code (e2e)', () => {
     })
   })
 
-  it('returns the success message when the code matches', async () => {
+  it('marks the code as verified and returns success when the code matches', async () => {
     const user = await createUser(ctx.app, ctx.prisma, { email: 'u@test.io' })
-    await insertCode(user.id, '654321')
+    const code = await insertCode(user.id, '654321')
 
     const response = await request(ctx.app.getHttpServer())
       .post('/auth/verify-reset-code')
@@ -89,6 +94,31 @@ describe('POST /auth/verify-reset-code (e2e)', () => {
     expect(response.status).toBe(200)
     expect(response.body).toMatchObject({
       message: 'Código verificado com sucesso.',
+    })
+
+    const stored = await ctx.prisma.passwordResetCodes.findUnique({
+      where: { id: code.id },
+    })
+    expect(stored?.state).toBe('verified')
+  })
+
+  it('rejects reuse of an already-verified code', async () => {
+    const user = await createUser(ctx.app, ctx.prisma, { email: 'u@test.io' })
+    await insertCode(user.id, '654321')
+
+    // First verify succeeds.
+    const first = await request(ctx.app.getHttpServer())
+      .post('/auth/verify-reset-code')
+      .send({ email: user.email, code: '654321' })
+    expect(first.status).toBe(200)
+
+    // Second verify with the same code MUST fail.
+    const second = await request(ctx.app.getHttpServer())
+      .post('/auth/verify-reset-code')
+      .send({ email: user.email, code: '654321' })
+    expect(second.status).toBe(400)
+    expect(second.body).toMatchObject({
+      errorCode: 'PASSWORD_RESET_INVALID_CODE',
     })
   })
 })

@@ -8,21 +8,18 @@ import { errorDictionary } from 'src/exception/error-dictionary'
 type AuthRepositoryMock = jest.Mocked<
   Pick<
     AuthRepository,
-    | 'findByEmail'
-    | 'updateUserPassword'
-    | 'findValidPasswordResetCode'
-    | 'markPasswordResetCodeAsUsed'
+    'findByEmail' | 'findVerifiedResetCode' | 'resetPasswordWithCode'
   >
 >
 
 type StoredResetCode = Awaited<
-  ReturnType<AuthRepository['findValidPasswordResetCode']>
+  ReturnType<AuthRepository['findVerifiedResetCode']>
 >
 
 const makeStoredCode = async (
   plaintext: string,
 ): Promise<NonNullable<StoredResetCode>> => ({
-  used: false,
+  state: 'verified',
   id: 'reset-1',
   userId: 'user-1',
   createdAt: new Date(),
@@ -37,9 +34,8 @@ describe('ResetPasswordService', () => {
   beforeEach(() => {
     authRepository = {
       findByEmail: jest.fn(),
-      updateUserPassword: jest.fn(),
-      findValidPasswordResetCode: jest.fn(),
-      markPasswordResetCodeAsUsed: jest.fn(),
+      findVerifiedResetCode: jest.fn(),
+      resetPasswordWithCode: jest.fn(),
     }
 
     service = new ResetPasswordService(
@@ -60,14 +56,13 @@ describe('ResetPasswordService', () => {
       errorCode: errorDictionary.passwordReset.invalidOrExpiredCode.errorCode,
     })
 
-    expect(authRepository.findValidPasswordResetCode).not.toHaveBeenCalled()
-    expect(authRepository.updateUserPassword).not.toHaveBeenCalled()
-    expect(authRepository.markPasswordResetCodeAsUsed).not.toHaveBeenCalled()
+    expect(authRepository.findVerifiedResetCode).not.toHaveBeenCalled()
+    expect(authRepository.resetPasswordWithCode).not.toHaveBeenCalled()
   })
 
-  it('throws invalidOrExpiredCode when there is no valid reset code', async () => {
+  it('throws invalidOrExpiredCode when there is no verified reset code', async () => {
     authRepository.findByEmail.mockResolvedValue(makeUser())
-    authRepository.findValidPasswordResetCode.mockResolvedValue(null)
+    authRepository.findVerifiedResetCode.mockResolvedValue(null)
 
     await expect(
       service.execute({
@@ -79,13 +74,12 @@ describe('ResetPasswordService', () => {
       errorCode: errorDictionary.passwordReset.invalidOrExpiredCode.errorCode,
     })
 
-    expect(authRepository.updateUserPassword).not.toHaveBeenCalled()
-    expect(authRepository.markPasswordResetCodeAsUsed).not.toHaveBeenCalled()
+    expect(authRepository.resetPasswordWithCode).not.toHaveBeenCalled()
   })
 
   it('throws invalidOrExpiredCode when the provided code does not match', async () => {
     authRepository.findByEmail.mockResolvedValue(makeUser())
-    authRepository.findValidPasswordResetCode.mockResolvedValue(
+    authRepository.findVerifiedResetCode.mockResolvedValue(
       await makeStoredCode('123456'),
     )
 
@@ -99,15 +93,14 @@ describe('ResetPasswordService', () => {
       errorCode: errorDictionary.passwordReset.invalidOrExpiredCode.errorCode,
     })
 
-    expect(authRepository.updateUserPassword).not.toHaveBeenCalled()
-    expect(authRepository.markPasswordResetCodeAsUsed).not.toHaveBeenCalled()
+    expect(authRepository.resetPasswordWithCode).not.toHaveBeenCalled()
   })
 
-  it('updates password, marks code as used, and returns success when code is valid', async () => {
+  it('atomically updates password and marks the code used when valid', async () => {
     const user = makeUser()
     const storedCode = await makeStoredCode('654321')
     authRepository.findByEmail.mockResolvedValue(user)
-    authRepository.findValidPasswordResetCode.mockResolvedValue(storedCode)
+    authRepository.findVerifiedResetCode.mockResolvedValue(storedCode)
 
     const result = await service.execute({
       code: '654321',
@@ -117,17 +110,14 @@ describe('ResetPasswordService', () => {
 
     expect(result).toEqual({ message: 'Senha redefinida com sucesso.' })
 
-    expect(authRepository.updateUserPassword).toHaveBeenCalledTimes(1)
-    const [userIdArg, hashedPassword] =
-      authRepository.updateUserPassword.mock.calls[0]
+    expect(authRepository.resetPasswordWithCode).toHaveBeenCalledTimes(1)
+    const [userIdArg, hashedPassword, codeIdArg] =
+      authRepository.resetPasswordWithCode.mock.calls[0]
     expect(userIdArg).toBe(user.id)
+    expect(codeIdArg).toBe(storedCode.id)
     expect(hashedPassword).not.toBe('my-new-password')
     await expect(
       compare('my-new-password', hashedPassword as string),
     ).resolves.toBe(true)
-
-    expect(authRepository.markPasswordResetCodeAsUsed).toHaveBeenCalledWith(
-      storedCode.id,
-    )
   })
 })

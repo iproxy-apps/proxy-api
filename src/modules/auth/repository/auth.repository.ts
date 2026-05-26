@@ -15,12 +15,14 @@ import type {
 
 type UsersCreateInput = Prisma.UsersCreateInput
 
+type PasswordResetCodeState = 'pending' | 'verified' | 'used'
+
 type PasswordResetCode = {
   id: string
   userId: string
   code: string
   expiresAt: Date
-  used: boolean
+  state: PasswordResetCodeState
   createdAt: Date
 }
 
@@ -158,13 +160,32 @@ export class AuthRepository implements AuthRepositoryDTO {
     })
   }
 
-  async findValidPasswordResetCode(
+  /**
+   * Fresh, never-verified code that can be consumed by `verify-reset-code`.
+   */
+  async findPendingResetCode(
     userId: string,
   ): Promise<PasswordResetCode | null> {
     return this.prisma.passwordResetCodes.findFirst({
       where: {
         userId,
-        used: false,
+        state: 'pending',
+        expiresAt: { gt: new Date() },
+      },
+      orderBy: { createdAt: 'desc' },
+    })
+  }
+
+  /**
+   * Already-verified code that has not yet been used to reset the password.
+   */
+  async findVerifiedResetCode(
+    userId: string,
+  ): Promise<PasswordResetCode | null> {
+    return this.prisma.passwordResetCodes.findFirst({
+      where: {
+        userId,
+        state: 'verified',
         expiresAt: { gt: new Date() },
       },
       orderBy: { createdAt: 'desc' },
@@ -182,11 +203,34 @@ export class AuthRepository implements AuthRepositoryDTO {
     })
   }
 
-  async markPasswordResetCodeAsUsed(codeId: string): Promise<void> {
+  async markPasswordResetCodeAsVerified(codeId: string): Promise<void> {
     await this.prisma.passwordResetCodes.update({
       where: { id: codeId },
-      data: { used: true },
+      data: { state: 'verified' },
     })
+  }
+
+  /**
+   * Atomically updates the user's password AND transitions the reset code
+   * to `used`, in a single Prisma transaction. Either both succeed or both
+   * roll back — prevents the code from being reusable if the second write
+   * fails.
+   */
+  async resetPasswordWithCode(
+    userId: string,
+    hashedPassword: string,
+    codeId: string,
+  ): Promise<void> {
+    await this.prisma.$transaction([
+      this.prisma.users.update({
+        where: { id: userId },
+        data: { password: hashedPassword },
+      }),
+      this.prisma.passwordResetCodes.update({
+        where: { id: codeId },
+        data: { state: 'used' },
+      }),
+    ])
   }
 
   async updateUserPassword(

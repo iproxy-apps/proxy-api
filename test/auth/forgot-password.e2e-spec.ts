@@ -52,7 +52,7 @@ describe('POST /auth/forgot-password (e2e)', () => {
       where: { userId: user.id },
     })
     expect(codes).toHaveLength(1)
-    expect(codes[0].used).toBe(false)
+    expect(codes[0].state).toBe('pending')
     expect(codes[0].expiresAt.getTime()).toBeGreaterThan(Date.now())
 
     expect(ctx.notificationMock.sendResetCodeByEmail).toHaveBeenCalledTimes(1)

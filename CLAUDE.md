@@ -132,7 +132,7 @@ Public route map (auth required everywhere except where noted):
 - **Payments**: Payment record with `status` (`PaymentStatus` enum: `pending | succeeded | failed | refunded | disputed`). Created as `pending` by `start-task` **before** Stripe confirm, then flipped by webhooks.
 - **Ratings**: One rating per task (`taskId @unique`), with `raterId`/`ratedId`/`score (1-5)`/`comment?`. Inserted from `/tasks/validate` when a rating is included in the body; `RateProxyService` then writes the average of `score` back to `Users.rating`.
 - **StripeEvents**: Dedupe table — stores every processed Stripe event `id` so retries from Stripe don't double-apply side effects.
-- **PasswordResetCodes**: Rate-limited (3 per 15 min) hashed codes for password recovery.
+- **PasswordResetCodes**: Rate-limited (3 per 15 min) hashed codes for password recovery. Each code has a single `state` enum (`PasswordResetCodeState`) that traces its lifecycle: `pending → verified → used`. `POST /auth/verify-reset-code` consumes a `pending` code and transitions it to `verified`; `POST /auth/reset-password` consumes a `verified` code and transitions it to `used`. Re-verifying or re-using a code at any later state returns `PASSWORD_RESET_INVALID_CODE`. `reset-password` updates the user's password and transitions the code to `used` in a single Prisma transaction, so the code is never left in a reusable state after a successful reset.
 
 ### Stripe Connect
 

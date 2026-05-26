@@ -24,9 +24,10 @@ export class ResetPasswordService {
       throw new AppException(errorDictionary.passwordReset.invalidOrExpiredCode)
     }
 
-    const resetCode = await this.authRepository.findValidPasswordResetCode(
-      user.id,
-    )
+    // Only an already-verified, not-yet-used code is accepted here. The
+    // verify-reset-code step transitions a fresh code to `verified=true`;
+    // this endpoint then consumes that verified code one time.
+    const resetCode = await this.authRepository.findVerifiedResetCode(user.id)
 
     if (!resetCode) {
       throw new AppException(errorDictionary.passwordReset.invalidOrExpiredCode)
@@ -40,8 +41,13 @@ export class ResetPasswordService {
 
     const hashedPassword = await hash(newPassword, 8)
 
-    await this.authRepository.updateUserPassword(user.id, hashedPassword)
-    await this.authRepository.markPasswordResetCodeAsUsed(resetCode.id)
+    // Atomic: update password AND mark the code as used. If either fails,
+    // both roll back, so the code can never be left in a reusable state.
+    await this.authRepository.resetPasswordWithCode(
+      user.id,
+      hashedPassword,
+      resetCode.id,
+    )
 
     return { message: 'Senha redefinida com sucesso.' }
   }
