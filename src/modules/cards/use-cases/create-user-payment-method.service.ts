@@ -42,7 +42,7 @@ export class CreateUserSourceService {
 
     if (!savedCard && token) {
       try {
-        const paymentMethod = await this.stripeService.createPaymentMethod(token) // prettier-ignore
+        const paymentMethod = await this.stripeService.retrievePaymentMethod(token) // prettier-ignore
 
         if (!paymentMethod || !paymentMethod.card) {
           throw new AppException(errorDictionary.card.creationFailed)

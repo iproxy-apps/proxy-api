@@ -46,10 +46,10 @@ describe('POST /card/create (e2e)', () => {
     const response = await request(ctx.app.getHttpServer())
       .post('/card/create')
       .set('Authorization', `Bearer ${user.token}`)
-      .send({ token: 'tok_abc' })
+      .send({ token: 'pm_abc' })
 
     expect(response.status).toBe(201)
-    expect(ctx.stripeMock.createPaymentMethod).toHaveBeenCalledWith('tok_abc')
+    expect(ctx.stripeMock.retrievePaymentMethod).toHaveBeenCalledWith('pm_abc')
     expect(ctx.stripeMock.attachPaymentMethodToCustomer).toHaveBeenCalledWith(
       'pm_test_123',
       user.stripeCustomerId,

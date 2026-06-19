@@ -4,7 +4,7 @@ export const createStripeServiceMock = (): jest.Mocked<StripeService> =>
   ({
     searchCustomer: jest.fn().mockResolvedValue({ data: [] }),
     createCustomer: jest.fn().mockResolvedValue({ id: 'cus_test_123' }),
-    createPaymentMethod: jest.fn().mockResolvedValue({
+    retrievePaymentMethod: jest.fn().mockResolvedValue({
       id: 'pm_test_123',
       card: { brand: 'visa', last4: '4242' },
     }),

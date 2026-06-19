@@ -18,7 +18,7 @@ type CardsRepositoryMock = jest.Mocked<
 >
 
 type StripeServiceMock = jest.Mocked<
-  Pick<StripeService, 'createPaymentMethod' | 'attachPaymentMethodToCustomer'>
+  Pick<StripeService, 'retrievePaymentMethod' | 'attachPaymentMethodToCustomer'>
 >
 
 const makeCard = (overrides: Partial<UserCard> = {}): UserCard => ({
@@ -38,7 +38,7 @@ describe('CreateUserSourceService', () => {
 
   beforeEach(() => {
     stripeService = {
-      createPaymentMethod: jest.fn(),
+      retrievePaymentMethod: jest.fn(),
       attachPaymentMethodToCustomer: jest.fn(),
     }
     authRepository = { findUserStripeCustomerId: jest.fn() }
@@ -59,12 +59,12 @@ describe('CreateUserSourceService', () => {
     authRepository.findUserStripeCustomerId.mockResolvedValue(null)
 
     await expect(
-      service.execute({ userId: 'user-1', token: 'tok_123' }),
+      service.execute({ userId: 'user-1', token: 'pm_123' }),
     ).rejects.toMatchObject({
       errorCode: errorDictionary.user.notFound.errorCode,
     })
 
-    expect(stripeService.createPaymentMethod).not.toHaveBeenCalled()
+    expect(stripeService.retrievePaymentMethod).not.toHaveBeenCalled()
   })
 
   it('is a no-op when neither token nor savedCard is provided', async () => {
@@ -73,7 +73,7 @@ describe('CreateUserSourceService', () => {
 
     await service.execute({ userId: 'user-1' })
 
-    expect(stripeService.createPaymentMethod).not.toHaveBeenCalled()
+    expect(stripeService.retrievePaymentMethod).not.toHaveBeenCalled()
     expect(cardsRepository.createUserSource).not.toHaveBeenCalled()
     expect(cardsRepository.updateUserSource).not.toHaveBeenCalled()
   })
@@ -110,7 +110,7 @@ describe('CreateUserSourceService', () => {
 
     await service.execute({ userId: 'user-1', savedCard: 'pm_saved' })
 
-    expect(stripeService.createPaymentMethod).not.toHaveBeenCalled()
+    expect(stripeService.retrievePaymentMethod).not.toHaveBeenCalled()
     expect(cardsRepository.createUserSource).not.toHaveBeenCalled()
     expect(cardsRepository.updateUserSource).not.toHaveBeenCalled()
   })
@@ -118,17 +118,17 @@ describe('CreateUserSourceService', () => {
   it('creates a new card when a token is provided and no card exists yet', async () => {
     authRepository.findUserStripeCustomerId.mockResolvedValue('cus_1')
     cardsRepository.fetchUserCard.mockResolvedValue(null)
-    stripeService.createPaymentMethod.mockResolvedValue({
+    stripeService.retrievePaymentMethod.mockResolvedValue({
       id: 'pm_new',
       card: { brand: 'visa', last4: '4242' },
-    } as Awaited<ReturnType<StripeService['createPaymentMethod']>>)
+    } as Awaited<ReturnType<StripeService['retrievePaymentMethod']>>)
     stripeService.attachPaymentMethodToCustomer.mockResolvedValue({
       id: 'pm_new',
     } as Awaited<ReturnType<StripeService['attachPaymentMethodToCustomer']>>)
 
-    await service.execute({ userId: 'user-1', token: 'tok_123' })
+    await service.execute({ userId: 'user-1', token: 'pm_123' })
 
-    expect(stripeService.createPaymentMethod).toHaveBeenCalledWith('tok_123')
+    expect(stripeService.retrievePaymentMethod).toHaveBeenCalledWith('pm_123')
     expect(stripeService.attachPaymentMethodToCustomer).toHaveBeenCalledWith(
       'pm_new',
       'cus_1',
@@ -145,15 +145,15 @@ describe('CreateUserSourceService', () => {
   it('updates the existing card when a token is provided and a card already exists', async () => {
     authRepository.findUserStripeCustomerId.mockResolvedValue('cus_1')
     cardsRepository.fetchUserCard.mockResolvedValue(makeCard())
-    stripeService.createPaymentMethod.mockResolvedValue({
+    stripeService.retrievePaymentMethod.mockResolvedValue({
       id: 'pm_new',
       card: { brand: 'mastercard', last4: '0001' },
-    } as Awaited<ReturnType<StripeService['createPaymentMethod']>>)
+    } as Awaited<ReturnType<StripeService['retrievePaymentMethod']>>)
     stripeService.attachPaymentMethodToCustomer.mockResolvedValue({
       id: 'pm_new',
     } as Awaited<ReturnType<StripeService['attachPaymentMethodToCustomer']>>)
 
-    await service.execute({ userId: 'user-1', token: 'tok_123' })
+    await service.execute({ userId: 'user-1', token: 'pm_123' })
 
     expect(cardsRepository.updateUserSource).toHaveBeenCalledWith({
       id: 'card-1',
@@ -167,13 +167,13 @@ describe('CreateUserSourceService', () => {
   it('throws creationFailed when the payment method returned has no card', async () => {
     authRepository.findUserStripeCustomerId.mockResolvedValue('cus_1')
     cardsRepository.fetchUserCard.mockResolvedValue(null)
-    stripeService.createPaymentMethod.mockResolvedValue({
+    stripeService.retrievePaymentMethod.mockResolvedValue({
       card: null,
       id: 'pm_new',
-    } as unknown as Awaited<ReturnType<StripeService['createPaymentMethod']>>)
+    } as unknown as Awaited<ReturnType<StripeService['retrievePaymentMethod']>>)
 
     await expect(
-      service.execute({ userId: 'user-1', token: 'tok_123' }),
+      service.execute({ userId: 'user-1', token: 'pm_123' }),
     ).rejects.toMatchObject({
       errorCode: errorDictionary.card.creationFailed.errorCode,
     })
@@ -185,16 +185,16 @@ describe('CreateUserSourceService', () => {
   it('throws creationFailed when the attachment does not return an id', async () => {
     authRepository.findUserStripeCustomerId.mockResolvedValue('cus_1')
     cardsRepository.fetchUserCard.mockResolvedValue(null)
-    stripeService.createPaymentMethod.mockResolvedValue({
+    stripeService.retrievePaymentMethod.mockResolvedValue({
       id: 'pm_new',
       card: { brand: 'visa', last4: '4242' },
-    } as Awaited<ReturnType<StripeService['createPaymentMethod']>>)
+    } as Awaited<ReturnType<StripeService['retrievePaymentMethod']>>)
     stripeService.attachPaymentMethodToCustomer.mockResolvedValue(
       {} as Awaited<ReturnType<StripeService['attachPaymentMethodToCustomer']>>,
     )
 
     await expect(
-      service.execute({ userId: 'user-1', token: 'tok_123' }),
+      service.execute({ userId: 'user-1', token: 'pm_123' }),
     ).rejects.toMatchObject({
       errorCode: errorDictionary.card.creationFailed.errorCode,
     })
@@ -205,12 +205,12 @@ describe('CreateUserSourceService', () => {
   it('throws creationFailed when Stripe throws during payment method creation', async () => {
     authRepository.findUserStripeCustomerId.mockResolvedValue('cus_1')
     cardsRepository.fetchUserCard.mockResolvedValue(null)
-    stripeService.createPaymentMethod.mockRejectedValue(
+    stripeService.retrievePaymentMethod.mockRejectedValue(
       new Error('stripe down'),
     )
 
     await expect(
-      service.execute({ userId: 'user-1', token: 'tok_123' }),
+      service.execute({ userId: 'user-1', token: 'pm_123' }),
     ).rejects.toMatchObject({
       errorCode: errorDictionary.card.creationFailed.errorCode,
     })

@@ -43,11 +43,8 @@ export class StripeService {
     })
   }
 
-  async createPaymentMethod(token: string) {
-    return await this.stripe.paymentMethods.create({
-      type: 'card',
-      card: { token },
-    })
+  async retrievePaymentMethod(paymentMethodId: string) {
+    return await this.stripe.paymentMethods.retrieve(paymentMethodId)
   }
 
   async attachPaymentMethodToCustomer(
