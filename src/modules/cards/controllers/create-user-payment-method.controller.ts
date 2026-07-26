@@ -31,7 +31,7 @@ export class CreateUserPaymentMethodController {
     const userId = user.sub
     const { token } = body
 
-    await this.createUserSourceService.execute({
+    return await this.createUserSourceService.execute({
       token,
       userId,
     })

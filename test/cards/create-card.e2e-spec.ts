@@ -55,6 +55,14 @@ describe('POST /card/create (e2e)', () => {
       user.stripeCustomerId,
     )
 
+    expect(response.body).toMatchObject({
+      userId: user.id,
+      stripeCardId: 'pm_test_123',
+      brand: 'visa',
+      last4: '4242',
+    })
+    expect(response.body.id).toEqual(expect.any(String))
+
     const cards = await ctx.prisma.cards.findMany({ where: { userId: user.id } })
     expect(cards).toHaveLength(1)
     expect(cards[0]).toMatchObject({

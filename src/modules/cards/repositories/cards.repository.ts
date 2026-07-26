@@ -13,9 +13,9 @@ import type { CardsRepositoryDTO } from '../dtos/cards-repository.dto'
 export class CardsRepository implements CardsRepositoryDTO {
   constructor(private prisma: PrismaService) {}
 
-  async createUserSource(data: CreateUserSourceData): Promise<void> {
+  async createUserSource(data: CreateUserSourceData): Promise<UserCard> {
     const { token, userId, brand, last4 } = data
-    await this.prisma.cards.create({
+    return await this.prisma.cards.create({
       data: {
         userId: userId,
         brand: brand as string,
@@ -37,9 +37,9 @@ export class CardsRepository implements CardsRepositoryDTO {
     })
   }
 
-  async updateUserSource(data: UpdateUserSourceData): Promise<void> {
+  async updateUserSource(data: UpdateUserSourceData): Promise<UserCard> {
     const { id, brand, last4, stripeCardId } = data
-    await this.prisma.cards.update({
+    return await this.prisma.cards.update({
       where: { id },
       data: {
         brand,

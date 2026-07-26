@@ -7,7 +7,7 @@ import { AuthRepository } from 'src/modules/auth/repository/auth.repository'
 
 import { errorDictionary } from 'src/exception/error-dictionary'
 
-import type { CreateUserSourceData } from '../types'
+import type { CreateUserSourceData, UserCard } from '../types'
 
 @Injectable()
 export class CreateUserSourceService {
@@ -17,7 +17,7 @@ export class CreateUserSourceService {
     private cardsRepository: CardsRepository,
   ) {}
 
-  async execute(data: CreateUserSourceData): Promise<void> {
+  async execute(data: CreateUserSourceData): Promise<UserCard | null> {
     const { userId, token, savedCard } = data
 
     const stripeCustomerId =
@@ -38,6 +38,7 @@ export class CreateUserSourceService {
       ) {
         throw new AppException(errorDictionary.card.noSavedCardFound)
       }
+      return existingCard
     }
 
     if (!savedCard && token) {
@@ -63,24 +64,25 @@ export class CreateUserSourceService {
         }
 
         if (!existingCard) {
-          await this.cardsRepository.createUserSource({
+          return await this.cardsRepository.createUserSource({
             brand,
             last4,
             userId,
             token: stripeCardId,
           })
-        } else {
-          await this.cardsRepository.updateUserSource({
-            last4,
-            brand,
-            stripeCardId,
-            id: existingCard.id,
-          })
         }
+        return await this.cardsRepository.updateUserSource({
+          last4,
+          brand,
+          stripeCardId,
+          id: existingCard.id,
+        })
       } catch (error) {
         if (error instanceof AppException) throw error
         throw new AppException(errorDictionary.card.creationFailed)
       }
     }
+
+    return null
   }
 }
