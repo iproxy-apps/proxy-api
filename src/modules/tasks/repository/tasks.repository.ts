@@ -185,12 +185,31 @@ export class TasksRepository implements TasksRepositoryDTO {
         },
       },
       where: {
-        status: {
-          in: ['accepted', 'on_the_way', 'in_progress', 'verification_required'],
-        },
+        ownerId: { isDeleted: false },
         OR: [
-          { owner: userId },
-          { userTaskMappings: { some: { executorId: userId } } },
+          {
+            owner: userId,
+            status: {
+              in: [
+                'available',
+                'accepted',
+                'on_the_way',
+                'in_progress',
+                'verification_required',
+              ],
+            },
+          },
+          {
+            userTaskMappings: { some: { executorId: userId } },
+            status: {
+              in: [
+                'accepted',
+                'on_the_way',
+                'in_progress',
+                'verification_required',
+              ],
+            },
+          },
         ],
       },
       orderBy: { createdAt: 'desc' },

@@ -38,16 +38,18 @@ describe('GET /tasks/active (e2e)', () => {
     expect(response.body).toEqual([])
   })
 
-  it('returns tasks the user created that are in an active status', async () => {
+  it('returns owner tasks in any non-terminal status (including available)', async () => {
     const owner = await createUser(ctx.app, ctx.prisma)
+    const available = await createTask(ctx.prisma, owner.id, {
+      status: 'available',
+    })
     const inProgress = await createTask(ctx.prisma, owner.id, {
       status: 'in_progress',
     })
     const verificationRequired = await createTask(ctx.prisma, owner.id, {
       status: 'verification_required',
     })
-    // Not active → excluded
-    await createTask(ctx.prisma, owner.id, { status: 'available' })
+    // Terminal statuses → excluded
     await createTask(ctx.prisma, owner.id, { status: 'completed' })
     await createTask(ctx.prisma, owner.id, { status: 'canceled' })
 
@@ -56,9 +58,11 @@ describe('GET /tasks/active (e2e)', () => {
       .set('Authorization', `Bearer ${owner.token}`)
 
     expect(response.status).toBe(200)
-    expect(response.body).toHaveLength(2)
+    expect(response.body).toHaveLength(3)
     const ids = response.body.map((t: { id: string }) => t.id).sort()
-    expect(ids).toEqual([inProgress.id, verificationRequired.id].sort())
+    expect(ids).toEqual(
+      [available.id, inProgress.id, verificationRequired.id].sort(),
+    )
   })
 
   it('returns tasks the user accepted as an executor', async () => {
