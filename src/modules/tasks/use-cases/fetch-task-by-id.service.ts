@@ -12,6 +12,11 @@ type FetchTaskByIdResult = FetchTasksResult & {
   payment: PaymentRecord | null
 }
 
+type Requester = {
+  userId: string
+  userType: string
+}
+
 @Injectable()
 export class FetchTaskByIdService {
   constructor(
@@ -19,9 +24,19 @@ export class FetchTaskByIdService {
     private paymentsRepository: PaymentsRepository,
   ) {}
 
-  async execute(taskId: string): Promise<FetchTaskByIdResult> {
+  async execute(
+    taskId: string,
+    requester: Requester,
+  ): Promise<FetchTaskByIdResult> {
     const task = await this.tasksRepository.fetchTaskById({ taskId })
     if (!task) throw new AppException(errorDictionary.tasks.taskNotFound)
+
+    // Clients only see their own tasks. Proxies may look at any task (they
+    // need to inspect available jobs before accepting). Return 404 for a
+    // non-owner Client so we don't leak the task's existence.
+    if (requester.userType === 'CLIENT' && task.owner !== requester.userId) {
+      throw new AppException(errorDictionary.tasks.taskNotFound)
+    }
 
     const payment = await this.paymentsRepository.fetchPaymentRecord(taskId)
     return { ...task, payment }

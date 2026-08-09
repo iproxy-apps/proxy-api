@@ -101,4 +101,49 @@ describe('GET /tasks/:id (e2e)', () => {
     expect(response.status).toBe(200)
     expect(Array.isArray(response.body)).toBe(true)
   })
+
+  it('returns 404 when a CLIENT tries to view another user\'s task', async () => {
+    const owner = await createUser(ctx.app, ctx.prisma, {
+      email: 'owner-fetch@test.io',
+    })
+    const stranger = await createUser(ctx.app, ctx.prisma, {
+      email: 'stranger-fetch@test.io',
+    })
+    const task = await createTask(ctx.prisma, owner.id, {
+      status: 'in_progress',
+    })
+
+    const response = await request(ctx.app.getHttpServer())
+      .get(`/tasks/${task.id}`)
+      .set('Authorization', `Bearer ${stranger.token}`)
+
+    expect(response.status).toBe(404)
+    expect(response.body).toMatchObject({ errorCode: 'TASK_NOT_FOUND' })
+  })
+
+  it('lets a PROXY view any task, even one they do not own', async () => {
+    const owner = await createUser(ctx.app, ctx.prisma, {
+      email: 'client-fetch-proxy@test.io',
+    })
+    const proxy = await createUser(ctx.app, ctx.prisma, {
+      email: 'proxy-fetch@test.io',
+      userType: 'PROXY',
+    })
+    const task = await createTask(ctx.prisma, owner.id, {
+      status: 'available',
+      title: 'Tarefa para o Proxy inspecionar',
+    })
+
+    const response = await request(ctx.app.getHttpServer())
+      .get(`/tasks/${task.id}`)
+      .set('Authorization', `Bearer ${proxy.token}`)
+
+    expect(response.status).toBe(200)
+    expect(response.body).toMatchObject({
+      id: task.id,
+      title: 'Tarefa para o Proxy inspecionar',
+      status: 'available',
+      owner: owner.id,
+    })
+  })
 })

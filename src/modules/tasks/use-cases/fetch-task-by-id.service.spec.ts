@@ -28,6 +28,10 @@ describe('FetchTaskByIdService', () => {
   let tasksRepository: TasksRepositoryMock
   let paymentsRepository: PaymentsRepositoryMock
 
+  // Convenience default requester — Proxy so ownership check doesn't kick in
+  // on tests that don't care about auth. Auth-specific tests declare their own.
+  const proxyRequester = { userId: 'user-proxy', userType: 'PROXY' }
+
   beforeEach(() => {
     tasksRepository = { fetchTaskById: jest.fn() }
     paymentsRepository = { fetchPaymentRecord: jest.fn().mockResolvedValue(null) }
@@ -41,7 +45,7 @@ describe('FetchTaskByIdService', () => {
   it('looks up the task by id without filtering by status', async () => {
     tasksRepository.fetchTaskById.mockResolvedValue(makeTaskDetails())
 
-    await service.execute('task-1')
+    await service.execute('task-1', proxyRequester)
 
     expect(tasksRepository.fetchTaskById).toHaveBeenCalledWith({
       taskId: 'task-1',
@@ -52,7 +56,7 @@ describe('FetchTaskByIdService', () => {
     const task = makeTaskDetails({ id: 'task-1' })
     tasksRepository.fetchTaskById.mockResolvedValue(task)
 
-    const result = await service.execute('task-1')
+    const result = await service.execute('task-1', proxyRequester)
 
     expect(result).toEqual({ ...task, payment: null })
   })
@@ -63,7 +67,7 @@ describe('FetchTaskByIdService', () => {
     tasksRepository.fetchTaskById.mockResolvedValue(task)
     paymentsRepository.fetchPaymentRecord.mockResolvedValue(payment)
 
-    const result = await service.execute('task-1')
+    const result = await service.execute('task-1', proxyRequester)
 
     expect(paymentsRepository.fetchPaymentRecord).toHaveBeenCalledWith('task-1')
     expect(result.payment).toBe(payment)
@@ -72,9 +76,49 @@ describe('FetchTaskByIdService', () => {
   it('throws taskNotFound when the repository returns null', async () => {
     tasksRepository.fetchTaskById.mockResolvedValue(null)
 
-    await expect(service.execute('missing')).rejects.toMatchObject({
-      errorCode: 'TASK_NOT_FOUND',
+    await expect(
+      service.execute('missing', proxyRequester),
+    ).rejects.toMatchObject({ errorCode: 'TASK_NOT_FOUND' })
+    await expect(
+      service.execute('missing', proxyRequester),
+    ).rejects.toBeInstanceOf(AppException)
+  })
+
+  it('lets a CLIENT view their own task', async () => {
+    const task = makeTaskDetails({ id: 'task-1', owner: 'user-client-1' })
+    tasksRepository.fetchTaskById.mockResolvedValue(task)
+
+    const result = await service.execute('task-1', {
+      userId: 'user-client-1',
+      userType: 'CLIENT',
     })
-    await expect(service.execute('missing')).rejects.toBeInstanceOf(AppException)
+
+    expect(result.id).toBe('task-1')
+  })
+
+  it("returns 404 when a CLIENT tries to view someone else's task", async () => {
+    const task = makeTaskDetails({ id: 'task-1', owner: 'user-client-owner' })
+    tasksRepository.fetchTaskById.mockResolvedValue(task)
+
+    await expect(
+      service.execute('task-1', {
+        userId: 'user-client-stranger',
+        userType: 'CLIENT',
+      }),
+    ).rejects.toMatchObject({ errorCode: 'TASK_NOT_FOUND' })
+    // Payment lookup should not happen when auth fails.
+    expect(paymentsRepository.fetchPaymentRecord).not.toHaveBeenCalled()
+  })
+
+  it('lets a PROXY view a task owned by any user', async () => {
+    const task = makeTaskDetails({ id: 'task-1', owner: 'user-client-owner' })
+    tasksRepository.fetchTaskById.mockResolvedValue(task)
+
+    const result = await service.execute('task-1', {
+      userId: 'user-random-proxy',
+      userType: 'PROXY',
+    })
+
+    expect(result.id).toBe('task-1')
   })
 })
