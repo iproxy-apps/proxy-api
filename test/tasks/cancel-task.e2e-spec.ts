@@ -108,7 +108,28 @@ describe('POST /tasks/cancel (e2e)', () => {
     expect(updatedPayment?.refundId).toBe('re_success')
   })
 
-  it('is a no-op when there is no payment record', async () => {
+  it('cancels an available task without refund (no payment yet)', async () => {
+    const owner = await createUser(ctx.app, ctx.prisma)
+    const task = await createTask(ctx.prisma, owner.id, {
+      status: 'available',
+    })
+
+    const response = await request(ctx.app.getHttpServer())
+      .post('/tasks/cancel')
+      .set('Authorization', `Bearer ${owner.token}`)
+      .send({ taskId: task.id })
+
+    expect(response.status).toBe(200)
+    expect(ctx.stripeMock.refundPayment).not.toHaveBeenCalled()
+
+    const updatedTask = await ctx.prisma.tasks.findUnique({
+      where: { id: task.id },
+    })
+    expect(updatedTask?.status).toBe('canceled')
+    expect(updatedTask?.canceledAt).not.toBeNull()
+  })
+
+  it('cancels an in_progress task without refund when there is no payment record', async () => {
     const owner = await createUser(ctx.app, ctx.prisma)
     const task = await createTask(ctx.prisma, owner.id, {
       status: 'in_progress',
@@ -126,6 +147,22 @@ describe('POST /tasks/cancel (e2e)', () => {
     const updatedTask = await ctx.prisma.tasks.findUnique({
       where: { id: task.id },
     })
-    expect(updatedTask?.status).toBe('in_progress')
+    expect(updatedTask?.status).toBe('canceled')
+    expect(updatedTask?.canceledAt).not.toBeNull()
+  })
+
+  it('rejects canceling a terminal task', async () => {
+    const owner = await createUser(ctx.app, ctx.prisma)
+    const task = await createTask(ctx.prisma, owner.id, {
+      status: 'completed',
+    })
+
+    const response = await request(ctx.app.getHttpServer())
+      .post('/tasks/cancel')
+      .set('Authorization', `Bearer ${owner.token}`)
+      .send({ taskId: task.id })
+
+    expect(response.status).toBe(403)
+    expect(response.body).toMatchObject({ errorCode: 'CANNOT_CANCEL_TASK' })
   })
 })

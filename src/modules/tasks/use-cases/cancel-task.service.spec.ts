@@ -72,6 +72,7 @@ describe('CancelTaskService', () => {
     tasksRepository.fetchTaskById.mockResolvedValue(
       makeTaskDetails({
         owner: 'someone-else',
+        status: 'in_progress',
         startedAt: hoursAgo(0),
       }),
     )
@@ -86,9 +87,24 @@ describe('CancelTaskService', () => {
     expect(tasksRepository.updateTaskStatus).not.toHaveBeenCalled()
   })
 
-  it('throws cannotCancelTask when the task started more than 1 hour ago', async () => {
+  it('throws cannotCancelTask when the task status is terminal', async () => {
     tasksRepository.fetchTaskById.mockResolvedValue(
-      makeTaskDetails({ startedAt: hoursAgo(2) }),
+      makeTaskDetails({ status: 'completed' }),
+    )
+
+    await expect(
+      service.execute({ taskId: 'task-1', userId: 'client-1' }),
+    ).rejects.toMatchObject({
+      errorCode: errorDictionary.tasks.cannotCancelTask.errorCode,
+    })
+
+    expect(fetchPaymentRecordService.execute).not.toHaveBeenCalled()
+    expect(tasksRepository.updateTaskStatus).not.toHaveBeenCalled()
+  })
+
+  it('throws cannotCancelTask when in_progress task started more than 1 hour ago', async () => {
+    tasksRepository.fetchTaskById.mockResolvedValue(
+      makeTaskDetails({ status: 'in_progress', startedAt: hoursAgo(2) }),
     )
 
     await expect(
@@ -102,22 +118,42 @@ describe('CancelTaskService', () => {
     expect(tasksRepository.updateTaskStatus).not.toHaveBeenCalled()
   })
 
-  it('does nothing when there is no payment record for the task', async () => {
+  it('cancels an available task without refund (no payment yet)', async () => {
     tasksRepository.fetchTaskById.mockResolvedValue(
-      makeTaskDetails({ startedAt: hoursAgo(0) }),
+      makeTaskDetails({ status: 'available', startedAt: null }),
     )
     fetchPaymentRecordService.execute.mockResolvedValue(null)
 
     await service.execute({ taskId: 'task-1', userId: 'client-1' })
 
     expect(stripeService.refundPayment).not.toHaveBeenCalled()
-    expect(tasksRepository.updateTaskStatus).not.toHaveBeenCalled()
+    expect(tasksRepository.updateTaskStatus).toHaveBeenCalledWith({
+      taskId: 'task-1',
+      status: 'canceled',
+      canceledAt: expect.any(Date),
+    })
     expect(updatePaymentRecordService.execute).not.toHaveBeenCalled()
+  })
+
+  it('cancels an in_progress task without refund when there is no payment record', async () => {
+    tasksRepository.fetchTaskById.mockResolvedValue(
+      makeTaskDetails({ status: 'in_progress', startedAt: hoursAgo(0) }),
+    )
+    fetchPaymentRecordService.execute.mockResolvedValue(null)
+
+    await service.execute({ taskId: 'task-1', userId: 'client-1' })
+
+    expect(stripeService.refundPayment).not.toHaveBeenCalled()
+    expect(tasksRepository.updateTaskStatus).toHaveBeenCalledWith({
+      taskId: 'task-1',
+      status: 'canceled',
+      canceledAt: expect.any(Date),
+    })
   })
 
   it('refunds, cancels and updates the payment record on the happy path', async () => {
     tasksRepository.fetchTaskById.mockResolvedValue(
-      makeTaskDetails({ startedAt: hoursAgo(0) }),
+      makeTaskDetails({ status: 'in_progress', startedAt: hoursAgo(0) }),
     )
     const paymentRecord = makePaymentRecord()
     fetchPaymentRecordService.execute.mockResolvedValue(paymentRecord)
@@ -142,7 +178,7 @@ describe('CancelTaskService', () => {
 
   it('throws refundFailed when Stripe refund does not succeed', async () => {
     tasksRepository.fetchTaskById.mockResolvedValue(
-      makeTaskDetails({ startedAt: hoursAgo(0) }),
+      makeTaskDetails({ status: 'in_progress', startedAt: hoursAgo(0) }),
     )
     fetchPaymentRecordService.execute.mockResolvedValue(makePaymentRecord())
     stripeService.refundPayment.mockResolvedValue({
@@ -162,7 +198,7 @@ describe('CancelTaskService', () => {
 
   it('throws refundFailed when Stripe throws during refund', async () => {
     tasksRepository.fetchTaskById.mockResolvedValue(
-      makeTaskDetails({ startedAt: hoursAgo(0) }),
+      makeTaskDetails({ status: 'in_progress', startedAt: hoursAgo(0) }),
     )
     fetchPaymentRecordService.execute.mockResolvedValue(makePaymentRecord())
     stripeService.refundPayment.mockRejectedValue(new Error('stripe down'))
