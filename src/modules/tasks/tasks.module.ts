@@ -18,8 +18,10 @@ import { StartTaskController } from './controllers/start-task.controller'
 import { CreateTaskController } from './controllers/create-task.controller'
 import { FetchTasksController } from './controllers/fetch-tasks.controller'
 import { FetchTaskByIdService } from './use-cases/fetch-task-by-id.service'
+import { FetchTaskProofService } from './use-cases/fetch-task-proof.service'
 import { FetchActiveTasksService } from './use-cases/fetch-active-tasks.service'
 import { FinishTaskController } from './controllers/finish-task.controller'
+import { FetchTaskProofController } from './controllers/fetch-task-proof.controller'
 import { CancelTaskController } from './controllers/cancel-task.controller'
 import { PaymentsRepository } from '../payments/repository/payments.repository'
 import { ValidateTaskController } from './controllers/validate-task.controller'
@@ -59,6 +61,7 @@ import { UpdatePaymentRecordService } from '../payments/use-cases/update-payment
     ValidateTaskService,
     FetchUserCardService,
     FetchTaskByIdService,
+    FetchTaskProofService,
     FetchUserDetailsService,
     CreateUserSourceService,
     FetchPaymentRecordService,
@@ -77,6 +80,7 @@ import { UpdatePaymentRecordService } from '../payments/use-cases/update-payment
     CancelTaskController,
     ValidateTaskController,
     FetchTaskByIdController,
+    FetchTaskProofController,
   ],
 })
 export class TasksModule {}

@@ -12,6 +12,7 @@ export const makeTaskDetails = (
   offeredPrice: 100,
   proxyEarnings: null,
   platformFee: null,
+  proofImageUrl: null,
   description: 'desc',
   createdAt: new Date(),
   locationAddress: 'addr',

@@ -67,6 +67,7 @@ export type FetchTasksResult = {
   offeredPrice: Decimal
   proxyEarnings: Decimal | null
   platformFee: Decimal | null
+  proofImageUrl: string | null
   id: string
   locationAddress: string
   status: TaskStatus

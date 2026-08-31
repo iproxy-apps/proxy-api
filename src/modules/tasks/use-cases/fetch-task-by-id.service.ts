@@ -10,6 +10,7 @@ import type { PaymentRecord } from 'src/modules/payments/types'
 
 type FetchTaskByIdResult = FetchTasksResult & {
   payment: PaymentRecord | null
+  executorId: string | null
 }
 
 type Requester = {
@@ -38,7 +39,11 @@ export class FetchTaskByIdService {
       throw new AppException(errorDictionary.tasks.taskNotFound)
     }
 
-    const payment = await this.paymentsRepository.fetchPaymentRecord(taskId)
-    return { ...task, payment }
+    const [payment, mapping] = await Promise.all([
+      this.paymentsRepository.fetchPaymentRecord(taskId),
+      this.tasksRepository.fetchTaskMappingByTaskId(taskId),
+    ])
+
+    return { ...task, payment, executorId: mapping?.executorId ?? null }
   }
 }

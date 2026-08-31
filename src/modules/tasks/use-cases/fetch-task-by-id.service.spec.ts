@@ -6,7 +6,9 @@ import { PaymentsRepository } from 'src/modules/payments/repository/payments.rep
 
 import type { PaymentRecord } from 'src/modules/payments/types'
 
-type TasksRepositoryMock = jest.Mocked<Pick<TasksRepository, 'fetchTaskById'>>
+type TasksRepositoryMock = jest.Mocked<
+  Pick<TasksRepository, 'fetchTaskById' | 'fetchTaskMappingByTaskId'>
+>
 type PaymentsRepositoryMock = jest.Mocked<
   Pick<PaymentsRepository, 'fetchPaymentRecord'>
 >
@@ -33,7 +35,10 @@ describe('FetchTaskByIdService', () => {
   const proxyRequester = { userId: 'user-proxy', userType: 'PROXY' }
 
   beforeEach(() => {
-    tasksRepository = { fetchTaskById: jest.fn() }
+    tasksRepository = {
+      fetchTaskById: jest.fn(),
+      fetchTaskMappingByTaskId: jest.fn().mockResolvedValue(null),
+    }
     paymentsRepository = { fetchPaymentRecord: jest.fn().mockResolvedValue(null) }
 
     service = new FetchTaskByIdService(
@@ -52,13 +57,28 @@ describe('FetchTaskByIdService', () => {
     })
   })
 
-  it('returns the task with payment=null when no payment record exists', async () => {
+  it('returns the task with payment=null and executorId=null when neither exists', async () => {
     const task = makeTaskDetails({ id: 'task-1' })
     tasksRepository.fetchTaskById.mockResolvedValue(task)
 
     const result = await service.execute('task-1', proxyRequester)
 
-    expect(result).toEqual({ ...task, payment: null })
+    expect(result).toEqual({ ...task, payment: null, executorId: null })
+  })
+
+  it('returns executorId from the task mapping when the task has an executor', async () => {
+    const task = makeTaskDetails({ id: 'task-1', status: 'in_progress' })
+    tasksRepository.fetchTaskById.mockResolvedValue(task)
+    tasksRepository.fetchTaskMappingByTaskId.mockResolvedValue({
+      taskId: 'task-1',
+      executorId: 'user-proxy-executor',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    })
+
+    const result = await service.execute('task-1', proxyRequester)
+
+    expect(result.executorId).toBe('user-proxy-executor')
   })
 
   it('returns the task with its payment record when present', async () => {
