@@ -91,7 +91,9 @@ describe('FinishTaskService', () => {
     expect(tasksRepository.updateTaskStatus).not.toHaveBeenCalled()
   })
 
-  it('throws taskStartedAtNotValid when started more than 1 hour ago', async () => {
+  it('allows finishing regardless of how long ago the task started', async () => {
+    // The 1h grace window only applies to the client's cancel action — the
+    // proxy's finish has no time cutoff; only the in_progress status matters.
     const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000)
     tasksRepository.fetchTaskById.mockResolvedValue(
       makeTaskDetails({ status: 'in_progress', startedAt: twoHoursAgo }),
@@ -100,13 +102,14 @@ describe('FinishTaskService', () => {
       makeTaskMapping(),
     )
 
-    await expect(
-      service.execute({ taskId: 'task-1', userId: 'proxy-1', file: null }),
-    ).rejects.toMatchObject({
-      errorCode: errorDictionary.tasks.taskStartedAtNotValid.errorCode,
-    })
+    await service.execute({ taskId: 'task-1', userId: 'proxy-1', file: null })
 
-    expect(tasksRepository.updateTaskStatus).not.toHaveBeenCalled()
+    expect(tasksRepository.updateTaskStatus).toHaveBeenCalledWith({
+      filePath: null,
+      taskId: 'task-1',
+      status: 'verification_required',
+      completedAt: expect.any(Date),
+    })
   })
 
   it('marks the task as verification_required without filePath when no file is provided', async () => {

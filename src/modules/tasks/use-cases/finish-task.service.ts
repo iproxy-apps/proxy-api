@@ -1,6 +1,5 @@
 import { join } from 'path'
 import { Injectable } from '@nestjs/common'
-import { differenceInHours } from 'date-fns'
 import { mkdirSync, writeFileSync } from 'fs'
 
 import { AppException } from 'src/exception/app.exception'
@@ -39,11 +38,10 @@ export class FinishTaskService {
       throw new AppException(errorDictionary.tasks.cannotFinishTask)
     }
 
-    // validate if task started at date is greater than 1 hour
-    const isGreaterThanOneHour = differenceInHours(new Date(), taskDetails.startedAt as Date) >= 1 // prettier-ignore
-    if (isGreaterThanOneHour) {
-      throw new AppException(errorDictionary.tasks.taskStartedAtNotValid)
-    }
+    // NOTE: there is no time-based cutoff on finishing a task. The 1h grace
+    // window only applies to the client's *cancel* action, which protects
+    // the pre-authorized payment; the proxy's *finish* action is bounded
+    // only by the `in_progress` status guard above.
 
     // save file to disk only after all validations pass
     let filePath: string | null = null
