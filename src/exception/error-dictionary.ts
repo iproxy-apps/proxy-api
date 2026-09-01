@@ -147,7 +147,7 @@ export const errorDictionary = {
 
     proxyAccountNotReady: {
       message:
-        'O proxy ainda não concluiu o onboarding do Stripe e não pode receber pagamentos.',
+        'Não foi possível liberar o pagamento. O Proxy ainda não terminou de configurar a conta para receber.',
       statusCode: HttpStatus.CONFLICT,
       errorCode: 'PROXY_ACCOUNT_NOT_READY',
     } as const,
