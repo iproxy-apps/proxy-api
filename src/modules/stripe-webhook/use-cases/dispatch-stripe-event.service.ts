@@ -32,14 +32,23 @@ export class DispatchStripeEventService {
     let event: Stripe.Event
     try {
       event = this.stripeService.constructWebhookEvent(rawBody, signature)
-    } catch {
+    } catch (error) {
+      this.logger.error(
+        'Stripe webhook signature verification failed',
+        error instanceof Error ? error.stack : String(error),
+      )
       throw new AppException(errorDictionary.webhook.invalidSignature)
     }
+
+    this.logger.log(`Dispatching Stripe event ${event.id} (${event.type})`)
 
     const alreadyProcessed = await this.stripeEventsRepository.wasProcessed(
       event.id,
     )
-    if (alreadyProcessed) return
+    if (alreadyProcessed) {
+      this.logger.log(`Event ${event.id} already processed, skipping`)
+      return
+    }
 
     switch (event.type) {
       case 'payment_intent.succeeded':

@@ -1,6 +1,7 @@
 import {
   Req,
   Post,
+  Logger,
   Headers,
   HttpCode,
   Controller,
@@ -17,6 +18,8 @@ import type { Request } from 'express'
 @SkipThrottle()
 @Controller('/stripe/webhook')
 export class StripeWebhookController {
+  private readonly logger = new Logger(StripeWebhookController.name)
+
   constructor(private dispatchStripeEventService: DispatchStripeEventService) {}
 
   @Post()
@@ -25,6 +28,10 @@ export class StripeWebhookController {
     @Headers('stripe-signature') signature: string,
     @Req() req: RawBodyRequest<Request>,
   ) {
+    this.logger.log(
+      `Incoming webhook (signature ${signature ? 'present' : 'missing'}, rawBody ${req.rawBody?.length ?? 0} bytes)`,
+    )
+
     if (!req.rawBody) {
       throw new AppException(errorDictionary.webhook.missingRawBody)
     }
