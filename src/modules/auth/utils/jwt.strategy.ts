@@ -23,7 +23,9 @@ const sessionPayloadSchema = z.object({
   totalTasksCompleted: z.coerce.number(),
   totalTasksCreated: z.coerce.number(),
   walletBalance: z.coerce.number(),
-  stripeAccountReady: z.boolean(),
+  // Defaulted so JWTs issued before this field was added still validate — old
+  // tokens are treated as "not yet configured", which matches the safe path.
+  stripeAccountReady: z.boolean().default(false),
   termsAccepted: z.boolean(),
 })
 

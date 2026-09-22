@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common'
+import { Injectable, Logger } from '@nestjs/common'
 
 import { StripeService } from 'src/stripe/stripe.service'
 
@@ -15,6 +15,8 @@ type CreateMerchantAccountServiceResponse = {
 
 @Injectable()
 export class CreateMerchantAccountService {
+  private readonly logger = new Logger(CreateMerchantAccountService.name)
+
   constructor(
     private envService: EnvService,
     private stripeService: StripeService,
@@ -50,6 +52,10 @@ export class CreateMerchantAccountService {
         stripeAccountId = merchantAccount.id
       } catch (error) {
         if (error instanceof AppException) throw error
+        this.logger.error(
+          `Stripe createMerchantAccount failed for user ${userId}`,
+          error instanceof Error ? error.stack : String(error),
+        )
         throw new AppException(
           errorDictionary.user.merchantAccountCreationFailed,
         )
@@ -72,7 +78,11 @@ export class CreateMerchantAccountService {
       })
 
       return { accountLinkUrl: link.url }
-    } catch {
+    } catch (error) {
+      this.logger.error(
+        `Stripe linkMerchantAccount failed for user ${userId} (account ${stripeAccountId}, callback ${callbackUrl ?? 'null'})`,
+        error instanceof Error ? error.stack : String(error),
+      )
       throw new AppException(errorDictionary.user.merchantAccountCreationFailed)
     }
   }
