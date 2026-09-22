@@ -23,6 +23,7 @@ const sessionPayloadSchema = z.object({
   totalTasksCompleted: z.coerce.number(),
   totalTasksCreated: z.coerce.number(),
   walletBalance: z.coerce.number(),
+  stripeAccountReady: z.boolean(),
   termsAccepted: z.boolean(),
 })
 

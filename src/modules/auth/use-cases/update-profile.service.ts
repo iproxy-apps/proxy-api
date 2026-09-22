@@ -61,6 +61,7 @@ export class UpdateProfileService {
       termsAccepted: updatedUser.termsAccepted,
       walletBalance: updatedUser.walletBalance,
       stripeAccountId: updatedUser.stripeAccountId,
+      stripeAccountReady: updatedUser.stripeAccountReady,
       stripeCustomerId: updatedUser.stripeCustomerId,
       totalTasksCreated: updatedUser.totalTasksCreated,
       totalTasksCompleted: updatedUser.totalTasksCompleted,

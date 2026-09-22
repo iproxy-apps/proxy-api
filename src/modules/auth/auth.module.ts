@@ -9,6 +9,7 @@ import { StripeModule } from 'src/stripe/stripe.module'
 import { PrismaService } from 'src/prisma/prisma.service'
 import { AuthRepository } from './repository/auth.repository'
 import { AuthenticateService } from './use-cases/authenticate.service'
+import { RefreshSessionService } from './use-cases/refresh-session.service'
 import { DeleteAccountService } from './use-cases/delete-account.service'
 import { TasksRepository } from '../tasks/repository/tasks.repository'
 import { DeleteAccountController } from './controllers/delete-account.controller'
@@ -19,6 +20,7 @@ import { ResetPasswordService } from './use-cases/reset-password.service'
 import { ForgotPasswordService } from './use-cases/forgot-password.service'
 import { VerifyResetCodeService } from './use-cases/verify-reset-code.service'
 import { AuthenticateController } from './controllers/authenticate.controller'
+import { RefreshSessionController } from './controllers/refresh-session.controller'
 import { FetchUserDetailsService } from './use-cases/fetch-user-details.service'
 import { UpdateProfileController } from './controllers/update-profile.controller'
 import { CreateAccountController } from './controllers/create-account.controller'
@@ -60,6 +62,7 @@ import { FetchMerchantDashboardLinkController } from './controllers/fetch-mercha
     AuthRepository,
     TasksRepository,
     AuthenticateService,
+    RefreshSessionService,
     DeleteAccountService,
     CreateAccountService,
     ResetPasswordService,
@@ -73,6 +76,7 @@ import { FetchMerchantDashboardLinkController } from './controllers/fetch-mercha
   ],
   controllers: [
     AuthenticateController,
+    RefreshSessionController,
     CreateAccountController,
     DeleteAccountController,
     UpdateProfileController,

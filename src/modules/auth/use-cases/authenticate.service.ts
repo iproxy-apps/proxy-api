@@ -51,6 +51,7 @@ export class AuthenticateService {
       termsAccepted: user.termsAccepted,
       walletBalance: user.walletBalance,
       stripeAccountId: user.stripeAccountId,
+      stripeAccountReady: user.stripeAccountReady,
       stripeCustomerId: user.stripeCustomerId,
       totalTasksCreated: user.totalTasksCreated,
       totalTasksCompleted: user.totalTasksCompleted,

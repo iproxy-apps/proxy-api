@@ -98,6 +98,7 @@ describe('AuthenticateService', () => {
         termsAccepted: user.termsAccepted,
         stripeAccountId: user.stripeAccountId,
         stripeCustomerId: user.stripeCustomerId,
+        stripeAccountReady: user.stripeAccountReady,
       }),
     )
   })
