@@ -1,5 +1,6 @@
 import type {
   InsertTaskData,
+  TaskCounterpart,
   FetchTasksResult,
   CreateTaskResult,
   FetchTaskByIdData,
@@ -22,6 +23,7 @@ export interface TasksRepositoryDTO {
   fetchTaskMappingByTaskId: (
     taskId: string,
   ) => Promise<FetchTaskUserMappingQueryData | null>
+  fetchTaskCounterpartById: (userId: string) => Promise<TaskCounterpart | null>
   validateTaskCompletion: (data: ValidateTaskCompletionData) => Promise<void>
   markPayoutFailed: (taskId: string) => Promise<void>
 }

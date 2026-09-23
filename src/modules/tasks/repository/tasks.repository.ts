@@ -4,6 +4,7 @@ import { PrismaService } from 'src/prisma/prisma.service'
 
 import type {
   InsertTaskData,
+  TaskCounterpart,
   FetchTasksResult,
   CreateTaskResult,
   FetchTaskByIdData,
@@ -224,6 +225,21 @@ export class TasksRepository implements TasksRepositoryDTO {
   ): Promise<FetchTaskUserMappingQueryData | null> {
     return await this.prisma.userTaskMapping.findUnique({
       where: { taskId },
+    })
+  }
+
+  async fetchTaskCounterpartById(
+    userId: string,
+  ): Promise<TaskCounterpart | null> {
+    return await this.prisma.users.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        name: true,
+        avatarUrl: true,
+        isVerified: true,
+        rating: true,
+      },
     })
   }
 

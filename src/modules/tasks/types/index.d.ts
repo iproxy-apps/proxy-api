@@ -128,6 +128,14 @@ export type FetchTaskUserMappingQueryData = {
   updatedAt: Date
 }
 
+export type TaskCounterpart = {
+  id: string
+  name: string
+  avatarUrl: string | null
+  isVerified: boolean
+  rating: Decimal
+}
+
 export type ValidateTaskData = {
   taskId: string
   userId: string

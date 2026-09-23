@@ -7,7 +7,12 @@ import { PaymentsRepository } from 'src/modules/payments/repository/payments.rep
 import type { PaymentRecord } from 'src/modules/payments/types'
 
 type TasksRepositoryMock = jest.Mocked<
-  Pick<TasksRepository, 'fetchTaskById' | 'fetchTaskMappingByTaskId'>
+  Pick<
+    TasksRepository,
+    | 'fetchTaskById'
+    | 'fetchTaskMappingByTaskId'
+    | 'fetchTaskCounterpartById'
+  >
 >
 type PaymentsRepositoryMock = jest.Mocked<
   Pick<PaymentsRepository, 'fetchPaymentRecord'>
@@ -38,6 +43,7 @@ describe('FetchTaskByIdService', () => {
     tasksRepository = {
       fetchTaskById: jest.fn(),
       fetchTaskMappingByTaskId: jest.fn().mockResolvedValue(null),
+      fetchTaskCounterpartById: jest.fn().mockResolvedValue(null),
     }
     paymentsRepository = { fetchPaymentRecord: jest.fn().mockResolvedValue(null) }
 
@@ -57,16 +63,22 @@ describe('FetchTaskByIdService', () => {
     })
   })
 
-  it('returns the task with payment=null and executorId=null when neither exists', async () => {
+  it('returns the task with payment=null and executor(Id)=null when neither exists', async () => {
     const task = makeTaskDetails({ id: 'task-1' })
     tasksRepository.fetchTaskById.mockResolvedValue(task)
 
     const result = await service.execute('task-1', proxyRequester)
 
-    expect(result).toEqual({ ...task, payment: null, executorId: null })
+    expect(result).toEqual({
+      ...task,
+      payment: null,
+      executorId: null,
+      executor: null,
+    })
+    expect(tasksRepository.fetchTaskCounterpartById).not.toHaveBeenCalled()
   })
 
-  it('returns executorId from the task mapping when the task has an executor', async () => {
+  it('returns executorId + executor from the task mapping when the task has an executor', async () => {
     const task = makeTaskDetails({ id: 'task-1', status: 'in_progress' })
     tasksRepository.fetchTaskById.mockResolvedValue(task)
     tasksRepository.fetchTaskMappingByTaskId.mockResolvedValue({
@@ -75,10 +87,24 @@ describe('FetchTaskByIdService', () => {
       createdAt: new Date(),
       updatedAt: new Date(),
     })
+    const executor = {
+      id: 'user-proxy-executor',
+      name: 'Jane Proxy',
+      avatarUrl: null,
+      isVerified: true,
+      rating: 4.8,
+    } as unknown as Awaited<
+      ReturnType<TasksRepository['fetchTaskCounterpartById']>
+    >
+    tasksRepository.fetchTaskCounterpartById.mockResolvedValue(executor)
 
     const result = await service.execute('task-1', proxyRequester)
 
+    expect(tasksRepository.fetchTaskCounterpartById).toHaveBeenCalledWith(
+      'user-proxy-executor',
+    )
     expect(result.executorId).toBe('user-proxy-executor')
+    expect(result.executor).toBe(executor)
   })
 
   it('returns the task with its payment record when present', async () => {

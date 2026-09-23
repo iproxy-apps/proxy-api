@@ -5,12 +5,13 @@ import { TasksRepository } from '../repository/tasks.repository'
 import { errorDictionary } from 'src/exception/error-dictionary'
 import { PaymentsRepository } from 'src/modules/payments/repository/payments.repository'
 
-import type { FetchTasksResult } from '../types'
+import type { FetchTasksResult, TaskCounterpart } from '../types'
 import type { PaymentRecord } from 'src/modules/payments/types'
 
 type FetchTaskByIdResult = FetchTasksResult & {
   payment: PaymentRecord | null
   executorId: string | null
+  executor: TaskCounterpart | null
 }
 
 type Requester = {
@@ -44,6 +45,15 @@ export class FetchTaskByIdService {
       this.tasksRepository.fetchTaskMappingByTaskId(taskId),
     ])
 
-    return { ...task, payment, executorId: mapping?.executorId ?? null }
+    const executor = mapping?.executorId
+      ? await this.tasksRepository.fetchTaskCounterpartById(mapping.executorId)
+      : null
+
+    return {
+      ...task,
+      payment,
+      executorId: mapping?.executorId ?? null,
+      executor,
+    }
   }
 }
