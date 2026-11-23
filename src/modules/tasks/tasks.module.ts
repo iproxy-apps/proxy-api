@@ -30,7 +30,6 @@ import { FetchActiveTasksController } from './controllers/fetch-active-tasks.con
 import { FetchUserDetailsService } from '../auth/use-cases/fetch-user-details.service'
 import { UpdateWalletBalanceService } from '../auth/use-cases/update-wallet-balance.service'
 import { SaveCardService } from '../cards/use-cases/save-card.service'
-import { UpdateTotalTasksCreatedService } from '../auth/use-cases/update-total-tasks-created.service'
 import { UpdateTotalTasksCompletedService } from '../auth/use-cases/update-total-tasks-completed.service'
 
 import { multerOptions } from 'src/pipes/multer-validation.pipe'
@@ -60,7 +59,6 @@ import { multerOptions } from 'src/pipes/multer-validation.pipe'
     FetchUserDetailsService,
     SaveCardService,
     UpdateWalletBalanceService,
-    UpdateTotalTasksCreatedService,
     UpdateTotalTasksCompletedService,
   ],
   controllers: [

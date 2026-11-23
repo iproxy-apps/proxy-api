@@ -21,7 +21,7 @@ describe('POST /tasks/create (e2e)', () => {
   })
 
   const taskPayload = {
-    cardDetails: {},
+    cardDetails: { savedCard: 'pm_owner' },
     title: 'Comprar mantimentos',
     description: 'Ir ao mercado e trazer os itens da lista',
     address: {
@@ -35,6 +35,27 @@ describe('POST /tasks/create (e2e)', () => {
     pricing: { offeredPrice: 50 },
   }
 
+  const withPrice = (offeredPrice: number) => ({
+    ...taskPayload,
+    pricing: { offeredPrice },
+  })
+
+  const seedCard = (userId: string) =>
+    ctx.prisma.cards.create({
+      data: {
+        userId,
+        stripeCardId: 'pm_owner',
+        brand: 'visa',
+        last4: '4242',
+      },
+    })
+
+  const post = (token: string, body: unknown) =>
+    request(ctx.app.getHttpServer())
+      .post('/tasks/create')
+      .set('Authorization', `Bearer ${token}`)
+      .send(body as object)
+
   it('rejects unauthenticated requests', async () => {
     const response = await request(ctx.app.getHttpServer())
       .post('/tasks/create')
@@ -43,70 +64,151 @@ describe('POST /tasks/create (e2e)', () => {
     expect(response.status).toBe(401)
   })
 
-  it('creates a task for the authenticated user', async () => {
+  it.each([0, 19.99, 20.005, 10000.01])(
+    'rejects offeredPrice %p',
+    async (offeredPrice) => {
+      const user = await createUser(ctx.app, ctx.prisma)
+      await seedCard(user.id)
+
+      const response = await post(user.token, withPrice(offeredPrice))
+
+      expect(response.status).toBe(400)
+      expect(await ctx.prisma.tasks.count()).toBe(0)
+    },
+  )
+
+  it('rejects cardDetails {} and both keys at once', async () => {
     const user = await createUser(ctx.app, ctx.prisma)
+    await seedCard(user.id)
 
-    const response = await request(ctx.app.getHttpServer())
-      .post('/tasks/create')
-      .set('Authorization', `Bearer ${user.token}`)
-      .send(taskPayload)
-
-    expect(response.status).toBe(201)
-
-    const tasks = await ctx.prisma.tasks.findMany({
-      where: { owner: user.id },
+    const empty = await post(user.token, { ...taskPayload, cardDetails: {} })
+    const both = await post(user.token, {
+      ...taskPayload,
+      cardDetails: { savedCard: 'a', paymentMethodId: 'b' },
     })
 
-    expect(tasks).toHaveLength(1)
-    expect(response.body).toEqual({ id: tasks[0].id })
-    expect(tasks[0]).toMatchObject({
-      title: taskPayload.title,
-      description: taskPayload.description,
-      status: 'available',
-      owner: user.id,
-    })
-    expect(Number(tasks[0].offeredPrice)).toBe(taskPayload.pricing.offeredPrice)
+    expect(empty.status).toBe(400)
+    expect(both.status).toBe(400)
+    expect(await ctx.prisma.tasks.count()).toBe(0)
+  })
 
-    const updatedUser = await ctx.prisma.users.findUnique({
+  it('rejects a PROXY with 403 USER_NOT_CLIENT and writes nothing', async () => {
+    const proxy = await createUser(ctx.app, ctx.prisma, { userType: 'PROXY' })
+    await seedCard(proxy.id)
+
+    const response = await post(proxy.token, taskPayload)
+
+    expect(response.status).toBe(403)
+    expect(response.body).toMatchObject({ errorCode: 'USER_NOT_CLIENT' })
+    expect(await ctx.prisma.tasks.count()).toBe(0)
+    const updated = await ctx.prisma.users.findUniqueOrThrow({
+      where: { id: proxy.id },
+    })
+    expect(updated.totalTasksCreated).toBe(0)
+  })
+
+  it('rejects a savedCard that is not the active card and writes nothing', async () => {
+    const user = await createUser(ctx.app, ctx.prisma)
+    await seedCard(user.id)
+
+    const response = await post(user.token, {
+      ...taskPayload,
+      cardDetails: { savedCard: 'pm_other' },
+    })
+
+    expect(response.status).toBe(404)
+    expect(response.body).toMatchObject({ errorCode: 'NO_SAVED_CARD_FOUND' })
+    expect(await ctx.prisma.tasks.count()).toBe(0)
+    const updated = await ctx.prisma.users.findUniqueOrThrow({
       where: { id: user.id },
     })
-    expect(updatedUser?.totalTasksCreated).toBe(1)
+    expect(updated.totalTasksCreated).toBe(0)
+  })
+
+  it('creates the task with the D1 fee breakdown persisted', async () => {
+    const user = await createUser(ctx.app, ctx.prisma)
+    await seedCard(user.id)
+
+    const response = await post(user.token, withPrice(100))
+
+    expect(response.status).toBe(201)
+    expect(Object.keys(response.body)).toEqual(['id'])
+
+    const t = await ctx.prisma.tasks.findUniqueOrThrow({
+      where: { id: response.body.id },
+    })
+    expect(t.offeredPrice.toFixed(2)).toBe('100.00')
+    expect(t.platformFee?.toFixed(2)).toBe('20.00')
+    expect(t.stripeFee?.toFixed(2)).toBe('4.38')
+    expect(t.chargedAmount?.toFixed(2)).toBe('100.00')
+    expect(t.proxyEarnings?.toFixed(2)).toBe('80.00')
+    expect(t.status).toBe('available')
+    expect(t).toMatchObject({
+      title: taskPayload.title,
+      description: taskPayload.description,
+      owner: user.id,
+    })
+
+    const updated = await ctx.prisma.users.findUniqueOrThrow({
+      where: { id: user.id },
+    })
+    expect(updated.totalTasksCreated).toBe(1)
+  })
+
+  it('rounds half-up (20.03 and 50)', async () => {
+    const user = await createUser(ctx.app, ctx.prisma)
+    await seedCard(user.id)
+
+    const a = await post(user.token, withPrice(20.03))
+    const b = await post(user.token, withPrice(50))
+    expect(a.status).toBe(201)
+    expect(b.status).toBe(201)
+
+    const ta = await ctx.prisma.tasks.findUniqueOrThrow({
+      where: { id: a.body.id },
+    })
+    expect(ta.platformFee?.toFixed(2)).toBe('4.01')
+    expect(ta.stripeFee?.toFixed(2)).toBe('1.19')
+    expect(ta.chargedAmount?.toFixed(2)).toBe('20.03')
+    expect(ta.proxyEarnings?.toFixed(2)).toBe('16.02')
+
+    const tb = await ctx.prisma.tasks.findUniqueOrThrow({
+      where: { id: b.body.id },
+    })
+    expect(tb.platformFee?.toFixed(2)).toBe('10.00')
+    expect(tb.stripeFee?.toFixed(2)).toBe('2.39')
+    expect(tb.chargedAmount?.toFixed(2)).toBe('50.00')
+    expect(tb.proxyEarnings?.toFixed(2)).toBe('40.00')
+  })
+
+  it('saves a new card from a confirmed paymentMethodId and creates the task', async () => {
+    const user = await createUser(ctx.app, ctx.prisma)
+
+    const response = await post(user.token, {
+      ...taskPayload,
+      cardDetails: { paymentMethodId: 'pm_test_123' },
+    })
+
+    expect(response.status).toBe(201)
+    const cards = await ctx.prisma.cards.findMany({
+      where: { userId: user.id, isDeleted: false },
+    })
+    expect(cards).toHaveLength(1)
+    expect(cards[0].stripeCardId).toBe('pm_test_123')
+    expect(await ctx.prisma.tasks.count()).toBe(1)
   })
 
   it('increments the totalTasksCreated counter on each call (not overwrite)', async () => {
     const user = await createUser(ctx.app, ctx.prisma)
+    await seedCard(user.id)
 
-    await request(ctx.app.getHttpServer())
-      .post('/tasks/create')
-      .set('Authorization', `Bearer ${user.token}`)
-      .send(taskPayload)
-    await request(ctx.app.getHttpServer())
-      .post('/tasks/create')
-      .set('Authorization', `Bearer ${user.token}`)
-      .send(taskPayload)
-    await request(ctx.app.getHttpServer())
-      .post('/tasks/create')
-      .set('Authorization', `Bearer ${user.token}`)
-      .send(taskPayload)
+    await post(user.token, taskPayload)
+    await post(user.token, taskPayload)
+    await post(user.token, taskPayload)
 
     const updatedUser = await ctx.prisma.users.findUnique({
       where: { id: user.id },
     })
     expect(updatedUser?.totalTasksCreated).toBe(3)
-  })
-
-  it('rejects payloads with invalid schema', async () => {
-    const user = await createUser(ctx.app, ctx.prisma)
-
-    const response = await request(ctx.app.getHttpServer())
-      .post('/tasks/create')
-      .set('Authorization', `Bearer ${user.token}`)
-      .send({ title: 'missing fields' })
-
-    expect(response.status).toBe(400)
-    expect(response.body).toMatchObject({ errorCode: 'VALIDATION_FAILED' })
-
-    const tasks = await ctx.prisma.tasks.findMany()
-    expect(tasks).toHaveLength(0)
   })
 })

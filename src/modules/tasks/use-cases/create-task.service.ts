@@ -1,8 +1,13 @@
 import { Injectable } from '@nestjs/common'
 
+import { computeCharge } from 'src/common/money'
+import { AppException } from 'src/exception/app.exception'
 import { TasksRepository } from '../repository/tasks.repository'
 import { SaveCardService } from 'src/modules/cards/use-cases/save-card.service'
-import { UpdateTotalTasksCreatedService } from 'src/modules/auth/use-cases/update-total-tasks-created.service'
+import { FetchUserCardService } from 'src/modules/cards/use-cases/fetch-user-card.service'
+import { FetchUserDetailsService } from 'src/modules/auth/use-cases/fetch-user-details.service'
+
+import { errorDictionary } from 'src/exception/error-dictionary'
 
 import type { CreateTaskData } from '../types'
 
@@ -11,7 +16,8 @@ export class CreateTaskService {
   constructor(
     private tasksRepository: TasksRepository,
     private saveCardService: SaveCardService,
-    private updateTotalTasksCreatedService: UpdateTotalTasksCreatedService,
+    private fetchUserCardService: FetchUserCardService,
+    private fetchUserDetailsService: FetchUserDetailsService,
   ) {}
 
   async execute(data: CreateTaskData): Promise<{ id: string }> {
@@ -26,30 +32,43 @@ export class CreateTaskService {
       locationLat,
       locationLng,
       offeredPrice,
-
-      token,
+      savedCard,
+      paymentMethodId,
     } = data
+
+    const user = await this.fetchUserDetailsService.execute(userId)
+
+    if (user.userType !== 'CLIENT') {
+      throw new AppException(errorDictionary.user.notClient)
+    }
+
+    if (savedCard) {
+      const card = await this.fetchUserCardService.execute(userId)
+
+      if (card.stripeCardId !== savedCard) {
+        throw new AppException(errorDictionary.card.noSavedCardFound)
+      }
+    } else if (paymentMethodId) {
+      await this.saveCardService.execute({ userId, paymentMethodId })
+    }
+
+    const { platformFee, stripeFee, chargedAmount, proxyEarnings, ...rest } =
+      computeCharge(offeredPrice)
 
     const locationAddress = `${street}, ${city} - ${state}, ${zipCode}`
 
-    const task = await this.tasksRepository.create({
+    const task = await this.tasksRepository.createTask({
       title,
       userId,
       description,
       locationLat,
       locationLng,
-      offeredPrice,
       locationAddress,
-    })
-
-    // bridge until P1-T06 rewrites /tasks/create with the "card before insert" rule
-    if (token) {
-      await this.saveCardService.execute({ userId, paymentMethodId: token })
-    }
-
-    await this.updateTotalTasksCreatedService.execute({
-      id: userId,
-      tasksCreated: 1, // Increment by 1 for each created task
+      offeredPrice: rest.offeredPrice,
+      platformFee,
+      stripeFee,
+      chargedAmount,
+      proxyEarnings,
     })
 
     return { id: task.id }

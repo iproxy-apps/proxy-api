@@ -15,7 +15,7 @@ import type {
 } from '../types'
 
 export interface TasksRepositoryDTO {
-  create: (data: InsertTaskData) => Promise<CreateTaskResult>
+  createTask: (data: InsertTaskData) => Promise<CreateTaskResult>
   fetchAllTasks: (data: FetchTasksQueryData) => Promise<FetchTasksResult[]>
   fetchActiveTasksForUser: (userId: string) => Promise<FetchTasksResult[]>
   updateTaskStatus: (data: UpdateTaskStatusData) => Promise<void>

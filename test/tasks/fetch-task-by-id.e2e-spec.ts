@@ -63,6 +63,11 @@ describe('GET /tasks/:id (e2e)', () => {
       email: owner.email,
     })
     expect(response.body.payment).toBeNull()
+    expect(Number(response.body.chargedAmount)).toBe(50)
+    expect(Number(response.body.stripeFee)).toBe(2.39)
+    expect(Number(response.body.platformFee)).toBe(10)
+    expect(Number(response.body.proxyEarnings)).toBe(40)
+    expect(response.body).not.toHaveProperty('platformNet')
   })
 
   it('includes the payment record on the response when present', async () => {

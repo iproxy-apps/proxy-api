@@ -1,5 +1,7 @@
 import { Injectable } from '@nestjs/common'
 
+import type { Prisma } from '@prisma/client'
+
 import { PrismaService } from 'src/prisma/prisma.service'
 
 import type {
@@ -19,31 +21,80 @@ import type {
 } from '../types'
 import type { TasksRepositoryDTO } from '../dtos/tasks-repository.dto'
 
+export const taskSelect = {
+  id: true,
+  title: true,
+  description: true,
+  locationAddress: true,
+  locationLat: true,
+  locationLng: true,
+  offeredPrice: true,
+  proxyEarnings: true,
+  platformFee: true,
+  stripeFee: true,
+  chargedAmount: true,
+  proofImageUrl: true,
+  owner: true,
+  createdAt: true,
+  status: true,
+  startedAt: true,
+  ownerId: {
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      phoneNumber: true,
+      avatarUrl: true,
+      isVerified: true,
+      rating: true,
+      totalTasksCompleted: true,
+      totalTasksCreated: true,
+      stripeCustomerId: true,
+    },
+  },
+} satisfies Prisma.TasksSelect
+
 @Injectable()
 export class TasksRepository implements TasksRepositoryDTO {
   constructor(private prisma: PrismaService) {}
 
-  async create(data: InsertTaskData): Promise<CreateTaskResult> {
+  async createTask(data: InsertTaskData): Promise<CreateTaskResult> {
     const {
       title,
       userId,
       description,
       offeredPrice,
+      platformFee,
+      stripeFee,
+      chargedAmount,
+      proxyEarnings,
       locationLat,
       locationLng,
       locationAddress,
     } = data
-    return await this.prisma.tasks.create({
-      data: {
-        title,
-        owner: userId,
-        description,
-        locationLat,
-        locationLng,
-        offeredPrice,
-        locationAddress,
-      },
-    })
+    const [task] = await this.prisma.$transaction([
+      this.prisma.tasks.create({
+        data: {
+          title,
+          owner: userId,
+          description,
+          locationLat,
+          locationLng,
+          offeredPrice,
+          platformFee,
+          stripeFee,
+          chargedAmount,
+          proxyEarnings,
+          locationAddress,
+        },
+        select: { id: true },
+      }),
+      this.prisma.users.update({
+        where: { id: userId },
+        data: { totalTasksCreated: { increment: 1 } },
+      }),
+    ])
+    return task
   }
 
   async fetchAllTasks({
@@ -52,36 +103,7 @@ export class TasksRepository implements TasksRepositoryDTO {
     perPage,
   }: FetchTasksQueryData): Promise<FetchTasksResult[]> {
     return await this.prisma.tasks.findMany({
-      select: {
-        id: true,
-        title: true,
-        description: true,
-        locationAddress: true,
-        locationLat: true,
-        locationLng: true,
-        offeredPrice: true,
-        proxyEarnings: true,
-        platformFee: true,
-        proofImageUrl: true,
-        owner: true,
-        createdAt: true,
-        status: true,
-        startedAt: true,
-        ownerId: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            phoneNumber: true,
-            avatarUrl: true,
-            isVerified: true,
-            rating: true,
-            totalTasksCompleted: true,
-            totalTasksCreated: true,
-            stripeCustomerId: true,
-          },
-        },
-      },
+      select: taskSelect,
       where: {
         status: 'available',
         ownerId: { isDeleted: false },
@@ -122,36 +144,7 @@ export class TasksRepository implements TasksRepositoryDTO {
     data: FetchTaskByIdData,
   ): Promise<FetchTasksResult | null> {
     return await this.prisma.tasks.findUnique({
-      select: {
-        id: true,
-        title: true,
-        description: true,
-        locationAddress: true,
-        locationLat: true,
-        locationLng: true,
-        offeredPrice: true,
-        proxyEarnings: true,
-        platformFee: true,
-        proofImageUrl: true,
-        owner: true,
-        createdAt: true,
-        status: true,
-        startedAt: true,
-        ownerId: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            phoneNumber: true,
-            avatarUrl: true,
-            isVerified: true,
-            rating: true,
-            totalTasksCompleted: true,
-            totalTasksCreated: true,
-            stripeCustomerId: true,
-          },
-        },
-      },
+      select: taskSelect,
       where: {
         id: data.taskId,
         status: data.status,
@@ -162,36 +155,7 @@ export class TasksRepository implements TasksRepositoryDTO {
 
   async fetchActiveTasksForUser(userId: string): Promise<FetchTasksResult[]> {
     return await this.prisma.tasks.findMany({
-      select: {
-        id: true,
-        title: true,
-        description: true,
-        locationAddress: true,
-        locationLat: true,
-        locationLng: true,
-        offeredPrice: true,
-        proxyEarnings: true,
-        platformFee: true,
-        proofImageUrl: true,
-        owner: true,
-        createdAt: true,
-        status: true,
-        startedAt: true,
-        ownerId: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            phoneNumber: true,
-            avatarUrl: true,
-            isVerified: true,
-            rating: true,
-            totalTasksCompleted: true,
-            totalTasksCreated: true,
-            stripeCustomerId: true,
-          },
-        },
-      },
+      select: taskSelect,
       where: {
         ownerId: { isDeleted: false },
         OR: [
@@ -266,36 +230,7 @@ export class TasksRepository implements TasksRepositoryDTO {
     transferId: string,
   ): Promise<FetchTasksResult | null> {
     return await this.prisma.tasks.findUnique({
-      select: {
-        id: true,
-        title: true,
-        description: true,
-        locationAddress: true,
-        locationLat: true,
-        locationLng: true,
-        offeredPrice: true,
-        proxyEarnings: true,
-        platformFee: true,
-        proofImageUrl: true,
-        owner: true,
-        createdAt: true,
-        status: true,
-        startedAt: true,
-        ownerId: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            phoneNumber: true,
-            avatarUrl: true,
-            isVerified: true,
-            rating: true,
-            totalTasksCompleted: true,
-            totalTasksCreated: true,
-            stripeCustomerId: true,
-          },
-        },
-      },
+      select: taskSelect,
       where: { transferId },
     })
   }

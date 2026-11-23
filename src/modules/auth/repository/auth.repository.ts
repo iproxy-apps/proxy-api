@@ -61,13 +61,6 @@ export class AuthRepository implements AuthRepositoryDTO {
     })
   }
 
-  async updateTotalTasksCreated(userId: string, by: number): Promise<void> {
-    await this.prisma.users.update({
-      where: { id: userId },
-      data: { totalTasksCreated: { increment: by } },
-    })
-  }
-
   async updateWalletBalance(
     userId: string,
     walletBalance: number,

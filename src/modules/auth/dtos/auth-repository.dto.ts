@@ -14,10 +14,6 @@ export interface AuthRepositoryDTO {
     userId: string,
     totalTasksCompleted: number,
   ) => Promise<void>
-  updateTotalTasksCreated: (
-    userId: string,
-    totalTasksCreated: number,
-  ) => Promise<void>
   updateWalletBalance: (userId: string, walletBalance: number) => Promise<void>
   updateStripeAccountId: (
     userId: string,

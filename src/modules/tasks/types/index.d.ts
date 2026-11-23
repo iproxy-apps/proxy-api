@@ -25,7 +25,7 @@ export type CreateTaskData = {
   locationLng: number
 
   savedCard?: string
-  token?: string
+  paymentMethodId?: string
 }
 
 export type InsertTaskData = {
@@ -34,7 +34,11 @@ export type InsertTaskData = {
   description: string
   locationLat: number
   locationLng: number
-  offeredPrice: number
+  offeredPrice: Decimal
+  platformFee: Decimal
+  stripeFee: Decimal
+  chargedAmount: Decimal
+  proxyEarnings: Decimal
   locationAddress: string
 }
 
@@ -71,6 +75,8 @@ export type FetchTasksResult = {
   offeredPrice: Decimal
   proxyEarnings: Decimal | null
   platformFee: Decimal | null
+  stripeFee: Decimal | null
+  chargedAmount: Decimal | null
   proofImageUrl: string | null
   id: string
   locationAddress: string
@@ -94,20 +100,6 @@ export type FetchTasksResult = {
 
 export type CreateTaskResult = {
   id: string
-  owner: string
-  title: string
-  description: string
-  locationLat: Decimal
-  locationLng: Decimal
-  locationAddress: string
-  offeredPrice: Decimal
-  proxyEarnings: Decimal | null
-  platformFee: Decimal | null
-  status: TaskStatus
-  startedAt: Date | null
-  completedAt: Date | null
-  createdAt: Date
-  updatedAt: Date
 }
 
 export type StartTaskData = {

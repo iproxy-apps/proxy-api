@@ -11,6 +11,12 @@ export const errorDictionary = {
   } as const,
 
   user: {
+    notClient: {
+      message: 'Apenas clientes podem criar tarefas.',
+      statusCode: HttpStatus.FORBIDDEN,
+      errorCode: 'USER_NOT_CLIENT',
+    } as const,
+
     notFound: {
       message: 'Usuário não encontrado.',
       statusCode: HttpStatus.NOT_FOUND,

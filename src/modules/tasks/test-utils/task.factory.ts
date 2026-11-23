@@ -13,6 +13,8 @@ export const makeTaskDetails = (
   offeredPrice: new Prisma.Decimal(100),
   proxyEarnings: null,
   platformFee: null,
+  stripeFee: null,
+  chargedAmount: null,
   proofImageUrl: null,
   description: 'desc',
   createdAt: new Date(),
