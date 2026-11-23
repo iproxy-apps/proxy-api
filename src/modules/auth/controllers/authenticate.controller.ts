@@ -2,11 +2,12 @@ import z from 'zod'
 import { Throttle } from '@nestjs/throttler'
 import { Post, Body, HttpCode, UsePipes, Controller } from '@nestjs/common'
 
+import { emailSchema } from '../utils/auth-schemas'
 import { ZodValidationPipe } from 'src/pipes/zod-validation.pipe'
 import { AuthenticateService } from '../use-cases/authenticate.service'
 
 const authenticateBodySchema = z.object({
-  email: z.email(),
+  email: emailSchema,
   password: z.string(),
 })
 

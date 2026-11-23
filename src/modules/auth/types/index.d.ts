@@ -4,6 +4,15 @@ type Decimal = Prisma.Decimal
 
 export type UserType = 'CLIENT' | 'PROXY'
 
+export type CreateAccountInput = {
+  name: string
+  email: string
+  password: string
+  userType: UserType
+  phoneNumber?: string
+  termsAccepted: true
+}
+
 export type FindUserByEmailResult = {
   name: string
   id: string

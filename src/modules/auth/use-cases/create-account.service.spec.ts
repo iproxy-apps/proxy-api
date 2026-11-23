@@ -7,7 +7,7 @@ import { AuthRepository } from '../repository/auth.repository'
 import { CreateAccountService } from './create-account.service'
 import { errorDictionary } from 'src/exception/error-dictionary'
 
-import type { Prisma } from '@prisma/client'
+import type { CreateAccountInput } from '../types'
 
 type AuthRepositoryMock = jest.Mocked<
   Pick<AuthRepository, 'findByEmail' | 'create'>
@@ -20,8 +20,8 @@ type StripeServiceMock = jest.Mocked<
 type AuthenticateServiceMock = jest.Mocked<Pick<AuthenticateService, 'execute'>>
 
 const makeCreateInput = (
-  overrides: Partial<Prisma.UsersCreateInput> = {},
-): Prisma.UsersCreateInput => ({
+  overrides: Partial<CreateAccountInput> = {},
+): CreateAccountInput => ({
   name: 'New User',
   userType: 'CLIENT',
   termsAccepted: true,
@@ -133,6 +133,7 @@ describe('CreateAccountService', () => {
 
     const createArgs = authRepository.create.mock.calls[0][0]
     expect(createArgs.password).not.toBe('plaintext-password')
+    expect(createArgs.password).toMatch(/^\$2[aby]\$10\$/)
     await expect(
       compare('plaintext-password', createArgs.password as string),
     ).resolves.toBe(true)

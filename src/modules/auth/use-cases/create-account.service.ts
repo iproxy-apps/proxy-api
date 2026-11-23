@@ -1,14 +1,13 @@
-import { hash } from 'bcryptjs'
 import { Injectable } from '@nestjs/common'
 
 import { StripeService } from 'src/stripe/stripe.service'
-import { Prisma } from '@prisma/client'
-
-type UsersCreateInput = Prisma.UsersCreateInput
+import { hashPassword } from '../utils/password'
 import { AppException } from 'src/exception/app.exception'
 import { AuthenticateService } from './authenticate.service'
 import { AuthRepository } from '../repository/auth.repository'
 import { errorDictionary } from 'src/exception/error-dictionary'
+
+import type { CreateAccountInput } from '../types'
 
 type CreateAccountServiceResponse = {
   session: string
@@ -22,7 +21,9 @@ export class CreateAccountService {
     private authenticateService: AuthenticateService,
   ) {}
 
-  async execute(data: UsersCreateInput): Promise<CreateAccountServiceResponse> {
+  async execute(
+    data: CreateAccountInput,
+  ): Promise<CreateAccountServiceResponse> {
     const { email, password, name } = data
 
     const userExists = await this.authRepository.findByEmail(email)
@@ -31,7 +32,7 @@ export class CreateAccountService {
       throw new AppException(errorDictionary.user.emailExists(email))
     }
 
-    const hashedPassword = await hash(password, 8)
+    const hashedPassword = await hashPassword(password)
 
     // stripe logic
     let stripeCustomerId: string | null = null
@@ -50,10 +51,13 @@ export class CreateAccountService {
     }
 
     await this.authRepository.create({
-      ...data,
       name,
-      stripeCustomerId,
+      email,
       password: hashedPassword,
+      userType: data.userType,
+      phoneNumber: data.phoneNumber,
+      termsAccepted: data.termsAccepted,
+      stripeCustomerId,
     })
 
     return await this.authenticateService.execute({

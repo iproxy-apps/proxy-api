@@ -94,4 +94,77 @@ describe('POST /auth/create (e2e)', () => {
     expect(user?.stripeCustomerId).toBe('cus_existing')
     expect(ctx.stripeMock.createCustomer).not.toHaveBeenCalled()
   })
+
+  it('rejects server-owned fields (strict schema)', async () => {
+    const response = await request(ctx.app.getHttpServer())
+      .post('/auth/create')
+      .send({
+        ...validPayload(),
+        isVerified: true,
+        rating: 5,
+        walletBalance: 1000,
+      })
+
+    expect(response.status).toBe(400)
+    expect(await ctx.prisma.users.count()).toBe(0)
+  })
+
+  it('rejects termsAccepted: false', async () => {
+    const response = await request(ctx.app.getHttpServer())
+      .post('/auth/create')
+      .send({ ...validPayload(), termsAccepted: false })
+
+    expect(response.status).toBe(400)
+    expect(await ctx.prisma.users.count()).toBe(0)
+  })
+
+  it('rejects passwords shorter than 8 characters', async () => {
+    const response = await request(ctx.app.getHttpServer())
+      .post('/auth/create')
+      .send({ ...validPayload(), password: '1234567' })
+
+    expect(response.status).toBe(400)
+  })
+
+  it('normalises the email to lowercase and trims it', async () => {
+    await request(ctx.app.getHttpServer())
+      .post('/auth/create')
+      .send({ ...validPayload(), email: '  Ana@Test.IO ' })
+      .expect(200)
+
+    const user = await ctx.prisma.users.findUnique({
+      where: { email: 'ana@test.io' },
+    })
+    expect(user).not.toBeNull()
+  })
+
+  it('hashes the password with bcrypt cost 10', async () => {
+    const payload = validPayload()
+    await request(ctx.app.getHttpServer())
+      .post('/auth/create')
+      .send(payload)
+      .expect(200)
+
+    const user = await ctx.prisma.users.findUnique({
+      where: { email: payload.email },
+    })
+    expect(user?.password).toMatch(/^\$2[aby]\$10\$/)
+  })
+
+  it('accepts and discards the legacy document keys', async () => {
+    const response = await request(ctx.app.getHttpServer())
+      .post('/auth/create')
+      .send({
+        ...validPayload(),
+        userType: 'PROXY',
+        documentType: 'CPF',
+        documentUrl: 'https://x.test/doc.jpg',
+      })
+
+    expect(response.status).toBe(200)
+    expect(await ctx.prisma.users.count()).toBe(1)
+    const user = await ctx.prisma.users.findFirst()
+    expect(user?.documentType).toBeNull()
+    expect(user?.documentUrl).toBeNull()
+  })
 })

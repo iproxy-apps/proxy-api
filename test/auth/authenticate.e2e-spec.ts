@@ -68,4 +68,18 @@ describe('POST /auth/session (e2e)', () => {
     expect(typeof response.body.session).toBe('string')
     expect(response.body.session.split('.')).toHaveLength(3) // JWT shape
   })
+
+  it('accepts an email with different casing and surrounding spaces', async () => {
+    await createUser(ctx.app, ctx.prisma, {
+      email: 'ana@test.io',
+      password: 'password123',
+    })
+
+    const response = await request(ctx.app.getHttpServer())
+      .post('/auth/session')
+      .send({ email: ' ANA@Test.io ', password: 'password123' })
+
+    expect(response.status).toBe(200)
+    expect(typeof response.body.session).toBe('string')
+  })
 })

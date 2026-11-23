@@ -1,13 +1,14 @@
 import z from 'zod'
 import { Post, Body, HttpCode, UsePipes, Controller } from '@nestjs/common'
 
+import { emailSchema, passwordSchema } from '../utils/auth-schemas'
 import { ZodValidationPipe } from 'src/pipes/zod-validation.pipe'
 import { ResetPasswordService } from '../use-cases/reset-password.service'
 
 const resetPasswordBodySchema = z.object({
-  email: z.email(),
+  email: emailSchema,
   code: z.string().length(6),
-  newPassword: z.string().min(6),
+  newPassword: passwordSchema,
 })
 
 type ResetPasswordBodySchema = z.infer<typeof resetPasswordBodySchema>

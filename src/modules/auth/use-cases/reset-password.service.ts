@@ -1,7 +1,8 @@
-import { compare, hash } from 'bcryptjs'
+import { compare } from 'bcryptjs'
 import { Injectable } from '@nestjs/common'
 
 import { AppException } from 'src/exception/app.exception'
+import { hashPassword } from '../utils/password'
 import { AuthRepository } from '../repository/auth.repository'
 import { errorDictionary } from 'src/exception/error-dictionary'
 
@@ -39,7 +40,7 @@ export class ResetPasswordService {
       throw new AppException(errorDictionary.passwordReset.invalidOrExpiredCode)
     }
 
-    const hashedPassword = await hash(newPassword, 8)
+    const hashedPassword = await hashPassword(newPassword)
 
     // Atomic: update password AND mark the code as used. If either fails,
     // both roll back, so the code can never be left in a reusable state.
