@@ -36,6 +36,7 @@ const config: Config = {
   ],
   coverageDirectory: 'coverage',
   clearMocks: true,
+  setupFiles: ['<rootDir>/test/setup/unit-env.ts'],
 }
 
 export default config

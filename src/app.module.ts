@@ -13,6 +13,7 @@ import { CardsModule } from './modules/cards/cards.module'
 import { PaymentsModule } from './modules/payments/payments.module'
 import { RatingsModule } from './modules/ratings/ratings.module'
 import { TestHooksModule } from './modules/test-hooks/test-hooks.module'
+import { isTestHooksEnabled } from './modules/test-hooks/test-hooks.guard'
 import { StripeWebhookModule } from './modules/stripe-webhook/stripe-webhook.module'
 import { HealthModule } from './health/health.module'
 
@@ -29,7 +30,11 @@ import { HealthModule } from './health/health.module'
     ThrottlerModule.forRoot({
       throttlers: [{ ttl: 60_000, limit: 100 }],
       skipIf: () =>
-        process.env.NODE_ENV === 'test' || process.env.LOOP_TEST_HOOKS === '1',
+        process.env.NODE_ENV === 'test' ||
+        isTestHooksEnabled({
+          LOOP_TEST_HOOKS: process.env.LOOP_TEST_HOOKS,
+          NODE_ENV: process.env.NODE_ENV,
+        }),
     }),
 
     EnvModule,

@@ -63,6 +63,7 @@ describe('rate limiting (e2e)', () => {
 
   it('skips throttling entirely when LOOP_TEST_HOOKS=1 (device loop)', async () => {
     process.env.LOOP_TEST_HOOKS = '1'
+    process.env.NODE_ENV = 'development' // hooks are honoured outside production
     try {
       for (let i = 0; i < 6; i++) {
         const response = await request(ctx.app.getHttpServer())
@@ -70,6 +71,21 @@ describe('rate limiting (e2e)', () => {
           .send({})
         expect(response.status).toBe(400)
       }
+    } finally {
+      delete process.env.LOOP_TEST_HOOKS
+    }
+  })
+
+  it('ignores LOOP_TEST_HOOKS=1 in production (limits stay on)', async () => {
+    process.env.LOOP_TEST_HOOKS = '1'
+    try {
+      for (let i = 0; i < 5; i++) {
+        await request(ctx.app.getHttpServer()).post('/auth/session').send({})
+      }
+      const sixth = await request(ctx.app.getHttpServer())
+        .post('/auth/session')
+        .send({})
+      expect(sixth.status).toBe(429)
     } finally {
       delete process.env.LOOP_TEST_HOOKS
     }
