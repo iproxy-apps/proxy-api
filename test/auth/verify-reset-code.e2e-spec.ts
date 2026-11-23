@@ -41,8 +41,8 @@ describe('POST /auth/verify-reset-code (e2e)', () => {
       .post('/auth/verify-reset-code')
       .send({ email: 'user@test.io', code: 'abc' })
 
-    expect(response.status).toBeGreaterThanOrEqual(400)
-    expect(response.status).toBeLessThan(500)
+    expect(response.status).toBe(400)
+    expect(response.body).toMatchObject({ errorCode: 'VALIDATION_FAILED' })
   })
 
   it('returns invalidOrExpiredCode when the user does not exist', async () => {

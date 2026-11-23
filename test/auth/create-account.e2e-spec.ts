@@ -32,8 +32,8 @@ describe('POST /auth/create (e2e)', () => {
       .post('/auth/create')
       .send({ name: 'missing fields' })
 
-    expect(response.status).toBeGreaterThanOrEqual(400)
-    expect(response.status).toBeLessThan(500)
+    expect(response.status).toBe(400)
+    expect(response.body).toMatchObject({ errorCode: 'VALIDATION_FAILED' })
   })
 
   it('creates a user, a Stripe customer and returns a session', async () => {

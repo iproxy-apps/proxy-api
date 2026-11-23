@@ -180,8 +180,8 @@ describe('POST /tasks/validate (e2e)', () => {
       .set('Authorization', `Bearer ${owner.token}`)
       .send({ taskId: task.id, rating: 6 })
 
-    expect(response.status).toBeGreaterThanOrEqual(400)
-    expect(response.status).toBeLessThan(500)
+    expect(response.status).toBe(400)
+    expect(response.body).toMatchObject({ errorCode: 'VALIDATION_FAILED' })
 
     const stored = await ctx.prisma.ratings.findMany({
       where: { taskId: task.id },

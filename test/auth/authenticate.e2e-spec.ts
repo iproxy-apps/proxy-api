@@ -25,8 +25,8 @@ describe('POST /auth/session (e2e)', () => {
       .post('/auth/session')
       .send({ email: 'not-an-email', password: 'x' })
 
-    expect(response.status).toBeGreaterThanOrEqual(400)
-    expect(response.status).toBeLessThan(500)
+    expect(response.status).toBe(400)
+    expect(response.body).toMatchObject({ errorCode: 'VALIDATION_FAILED' })
   })
 
   it('returns 404 when the user does not exist', async () => {

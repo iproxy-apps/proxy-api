@@ -36,8 +36,8 @@ describe('GET /tasks/fetch (e2e)', () => {
       .get('/tasks/fetch')
       .set('Authorization', `Bearer ${user.token}`)
 
-    expect(response.status).toBeGreaterThanOrEqual(400)
-    expect(response.status).toBeLessThan(500)
+    expect(response.status).toBe(400)
+    expect(response.body).toMatchObject({ errorCode: 'VALIDATION_FAILED' })
   })
 
   it('returns an empty list when no tasks exist', async () => {

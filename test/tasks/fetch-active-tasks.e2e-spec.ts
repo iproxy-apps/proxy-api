@@ -25,6 +25,10 @@ describe('GET /tasks/active (e2e)', () => {
     const response = await request(ctx.app.getHttpServer()).get('/tasks/active')
 
     expect(response.status).toBe(401)
+    expect(response.body).toMatchObject({
+      errorCode: 'UNAUTHORIZED',
+      message: 'Sessão inválida ou expirada. Entre novamente.',
+    })
   })
 
   it('returns an empty list when the user has no active tasks', async () => {

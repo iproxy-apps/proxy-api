@@ -103,8 +103,8 @@ describe('POST /tasks/create (e2e)', () => {
       .set('Authorization', `Bearer ${user.token}`)
       .send({ title: 'missing fields' })
 
-    expect(response.status).toBeGreaterThanOrEqual(400)
-    expect(response.status).toBeLessThan(500)
+    expect(response.status).toBe(400)
+    expect(response.body).toMatchObject({ errorCode: 'VALIDATION_FAILED' })
 
     const tasks = await ctx.prisma.tasks.findMany()
     expect(tasks).toHaveLength(0)

@@ -90,4 +90,26 @@ describe('POST /tasks/finish (e2e)', () => {
     expect(updated?.proofImageUrl).toBeNull()
     expect(updated?.completedAt).not.toBeNull()
   })
+
+  it('rejects a proof above 10 MB with a Portuguese 413', async () => {
+    const { proxy, task } = await seedInProgressTask()
+
+    const response = await request(ctx.app.getHttpServer())
+      .post('/tasks/finish')
+      .set('Authorization', `Bearer ${proxy.token}`)
+      .field('taskId', task.id)
+      .attach('file', Buffer.alloc(10 * 1024 * 1024 + 1), {
+        filename: 'big.jpg',
+        contentType: 'image/jpeg',
+      })
+
+    expect(response.status).toBe(413)
+    expect(response.body).toMatchObject({
+      errorCode: 'FILE_TOO_LARGE',
+      message: 'Arquivo muito grande. O limite é 10 MB.',
+    })
+
+    const stored = await ctx.prisma.tasks.findUnique({ where: { id: task.id } })
+    expect(stored?.status).toBe('in_progress')
+  })
 })

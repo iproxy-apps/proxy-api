@@ -227,5 +227,67 @@ export const errorDictionary = {
       statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
       errorCode: 'FILE_UPLOAD_FAILED',
     } as const,
+
+    tooLarge: {
+      message: 'Arquivo muito grande. O limite é 10 MB.',
+      statusCode: HttpStatus.PAYLOAD_TOO_LARGE,
+      errorCode: 'FILE_TOO_LARGE',
+    } as const,
+  },
+
+  validation: {
+    failed: {
+      message: 'Dados inválidos. Verifique os campos e tente novamente.',
+      statusCode: HttpStatus.BAD_REQUEST,
+      errorCode: 'VALIDATION_FAILED',
+    } as const,
+  },
+
+  http: {
+    unauthorized: {
+      message: 'Sessão inválida ou expirada. Entre novamente.',
+      statusCode: HttpStatus.UNAUTHORIZED,
+      errorCode: 'UNAUTHORIZED',
+    } as const,
+
+    tooManyRequests: {
+      message: 'Muitas tentativas. Aguarde um minuto e tente novamente.',
+      statusCode: HttpStatus.TOO_MANY_REQUESTS,
+      errorCode: 'TOO_MANY_REQUESTS',
+    } as const,
+
+    routeNotFound: {
+      message: 'Rota não encontrada.',
+      statusCode: HttpStatus.NOT_FOUND,
+      errorCode: 'ROUTE_NOT_FOUND',
+    } as const,
+  },
+
+  database: {
+    conflict: {
+      message: 'Já existe um registro com esses dados.',
+      statusCode: HttpStatus.CONFLICT,
+      errorCode: 'RESOURCE_ALREADY_EXISTS',
+    } as const,
+
+    notFound: {
+      message: 'Registro não encontrado.',
+      statusCode: HttpStatus.NOT_FOUND,
+      errorCode: 'RESOURCE_NOT_FOUND',
+    } as const,
+
+    invalidId: {
+      message: 'Identificador inválido.',
+      statusCode: HttpStatus.BAD_REQUEST,
+      errorCode: 'INVALID_IDENTIFIER',
+    } as const,
+  },
+
+  health: {
+    databaseUnavailable: {
+      message: 'Banco de dados indisponível.',
+      statusCode: HttpStatus.SERVICE_UNAVAILABLE,
+      errorCode: 'HEALTH_DATABASE_UNAVAILABLE',
+    } as const,
   },
 } as const
