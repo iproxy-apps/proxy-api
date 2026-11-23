@@ -36,13 +36,10 @@ export type FindUserByEmailResult = {
   cardActionRequired: boolean
 }
 
-export type UsersUpdateInput = {
-  userId?: string
+export type UpdateProfileInput = {
+  userId: string
   name?: string
-  userType?: UserType
-  password?: string | null | undefined
-  avatarUrl?: string | null | undefined
-  phoneNumber?: string | null | undefined
+  phoneNumber?: string | null
 }
 
 export type AuthenticateServiceResponse = {
@@ -55,11 +52,8 @@ export type AccessTokenResponse = {
 }
 
 export type UpdateUserProfileRepositoryPayload = {
-  name: string
-  userType: UserType
-  password?: string
-  avatarUrl: string
-  phoneNumber: string
+  name?: string
+  phoneNumber?: string | null
 }
 
 export type MeResponse = {

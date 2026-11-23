@@ -8,13 +8,15 @@ import { UpdateProfileService } from '../use-cases/update-profile.service'
 
 import type { SessionPayload } from '../utils/jwt.strategy'
 
-const updateProfileBodySchema = z.object({
-  name: z.string(),
-  userType: z.enum(['CLIENT', 'PROXY']),
-  avatarUrl: z.url().optional().nullable(),
-  password: z.string().optional().nullable(),
-  phoneNumber: z.string().optional().nullable(),
-})
+const updateProfileBodySchema = z
+  .object({
+    name: z.string().trim().min(2).max(80).optional(),
+    phoneNumber: z.string().trim().min(8).max(20).nullable().optional(),
+  })
+  .strict()
+  .refine((b) => b.name !== undefined || b.phoneNumber !== undefined, {
+    message: 'Informe o nome ou o telefone.',
+  })
 
 type UpdateProfileBodySchema = z.infer<typeof updateProfileBodySchema>
 

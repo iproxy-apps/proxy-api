@@ -1,4 +1,3 @@
-import { hash } from 'bcryptjs'
 import { JwtService } from '@nestjs/jwt'
 import { Injectable } from '@nestjs/common'
 
@@ -8,7 +7,7 @@ import { buildSessionPayload } from '../utils/session-payload'
 import { errorDictionary } from 'src/exception/error-dictionary'
 
 import type {
-  UsersUpdateInput,
+  UpdateProfileInput,
   AccessTokenResponse,
   UpdateUserProfileRepositoryPayload,
 } from '../types'
@@ -20,31 +19,20 @@ export class UpdateProfileService {
     private authRepository: AuthRepository,
   ) {}
 
-  async execute(data: UsersUpdateInput): Promise<AccessTokenResponse> {
-    const { userId, password: newPassword, ...rest } = data
+  async execute(data: UpdateProfileInput): Promise<AccessTokenResponse> {
+    const { userId, name, phoneNumber } = data
 
-    const userDetails = await this.authRepository.fetchUserDetailsById(
-      userId as string,
-    )
+    const userDetails = await this.authRepository.fetchUserDetailsById(userId)
 
     if (!userDetails) throw new AppException(errorDictionary.user.notFound)
 
-    const payload: UpdateUserProfileRepositoryPayload = {
-      name: rest.name ?? userDetails.name,
-      userType: rest.userType ?? userDetails.userType,
-      avatarUrl: rest.avatarUrl ?? userDetails.avatarUrl ?? '',
-      phoneNumber: rest.phoneNumber ?? userDetails.phoneNumber ?? '',
-    }
+    const payload: UpdateUserProfileRepositoryPayload = {}
+    if (name !== undefined) payload.name = name
+    if (phoneNumber !== undefined) payload.phoneNumber = phoneNumber
 
-    if (newPassword) {
-      payload.password = await hash(newPassword, 8)
-    }
+    await this.authRepository.updateUserDetailsById(userId, payload)
 
-    await this.authRepository.updateUserDetailsById(userId as string, payload)
-
-    const updatedUser = await this.authRepository.fetchUserDetailsById(
-      userId as string,
-    )
+    const updatedUser = await this.authRepository.fetchUserDetailsById(userId)
 
     if (!updatedUser) throw new AppException(errorDictionary.user.notFound)
 

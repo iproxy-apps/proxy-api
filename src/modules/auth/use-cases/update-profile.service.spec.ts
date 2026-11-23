@@ -1,4 +1,3 @@
-import { compare } from 'bcryptjs'
 import { JwtService } from '@nestjs/jwt'
 
 import { makeUser } from '../test-utils/user.factory'
@@ -43,15 +42,14 @@ describe('UpdateProfileService', () => {
     expect(jwtService.sign).not.toHaveBeenCalled()
   })
 
-  it('merges provided fields with current user values and returns a new session', async () => {
-    const current = makeUser()
+  it('persists name and phone and returns a new session', async () => {
     const updated = makeUser({
       name: 'New Name',
       phoneNumber: '+5511000000000',
     })
 
     authRepository.fetchUserDetailsById
-      .mockResolvedValueOnce(current)
+      .mockResolvedValueOnce(makeUser())
       .mockResolvedValueOnce(updated)
     jwtService.sign.mockReturnValue('signed-token')
 
@@ -63,56 +61,40 @@ describe('UpdateProfileService', () => {
 
     expect(authRepository.updateUserDetailsById).toHaveBeenCalledWith(
       'user-1',
-      {
-        avatarUrl: '',
-        name: 'New Name',
-        userType: current.userType,
-        phoneNumber: '+5511000000000',
-      },
+      { name: 'New Name', phoneNumber: '+5511000000000' },
     )
-
     expect(jwtService.sign).toHaveBeenCalledWith(
       expect.objectContaining({
         sub: updated.id,
         name: updated.name,
-        email: updated.email,
-        userType: updated.userType,
         phoneNumber: updated.phoneNumber,
-        rating: 0,
       }),
-    )
-    expect(jwtService.sign).toHaveBeenCalledWith(
-      expect.not.objectContaining({ documentType: expect.anything() }),
     )
     expect(result).toEqual({ session: 'signed-token' })
   })
 
-  it('does not send a password field when none is provided', async () => {
-    const user = makeUser()
-    authRepository.fetchUserDetailsById.mockResolvedValue(user)
+  it('skips undefined keys', async () => {
+    authRepository.fetchUserDetailsById.mockResolvedValue(makeUser())
     jwtService.sign.mockReturnValue('signed-token')
 
     await service.execute({ userId: 'user-1', name: 'Changed' })
 
-    const [, payload] = authRepository.updateUserDetailsById.mock.calls[0]
-    expect(payload).not.toHaveProperty('password')
+    expect(authRepository.updateUserDetailsById).toHaveBeenCalledWith(
+      'user-1',
+      { name: 'Changed' },
+    )
   })
 
-  it('hashes the password before persisting when provided', async () => {
-    const user = makeUser()
-    authRepository.fetchUserDetailsById.mockResolvedValue(user)
+  it('passes null through to clear the phone', async () => {
+    authRepository.fetchUserDetailsById.mockResolvedValue(makeUser())
     jwtService.sign.mockReturnValue('signed-token')
 
-    await service.execute({
-      userId: 'user-1',
-      password: 'plaintext-password',
-    })
+    await service.execute({ userId: 'user-1', phoneNumber: null })
 
-    const [, payload] = authRepository.updateUserDetailsById.mock.calls[0]
-    expect(payload.password).not.toBe('plaintext-password')
-    await expect(
-      compare('plaintext-password', payload.password as string),
-    ).resolves.toBe(true)
+    expect(authRepository.updateUserDetailsById).toHaveBeenCalledWith(
+      'user-1',
+      { phoneNumber: null },
+    )
   })
 
   it('throws notFound when the user disappears between update and refetch', async () => {
