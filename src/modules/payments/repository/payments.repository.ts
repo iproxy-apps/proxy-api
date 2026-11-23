@@ -13,20 +13,6 @@ import type { PaymentsRepositoryDTO } from '../dtos/payments-repository.dto'
 export class PaymentsRepository implements PaymentsRepositoryDTO {
   constructor(private prisma: PrismaService) {}
 
-  async fetchPaymentRecord(taskId: string): Promise<PaymentRecord | null> {
-    return await this.prisma.payments.findFirst({ where: { taskId } })
-  }
-
-  async updatePaymentRecord(
-    taskId: string,
-    data: Partial<PaymentRecord>,
-  ): Promise<void> {
-    await this.prisma.payments.updateMany({
-      where: { taskId },
-      data,
-    })
-  }
-
   async fetchLatestByTaskId(taskId: string): Promise<PaymentRecord | null> {
     return await this.prisma.payments.findFirst({
       where: { taskId },

@@ -61,15 +61,6 @@ export type FetchTasksQueryData = {
   city: string
 }
 
-export type UpdateTaskStatusData = {
-  taskId: string
-  status: TaskStatus
-  filePath?: string | null
-  startedAt?: Date
-  completedAt?: Date
-  canceledAt?: Date
-}
-
 export type FetchTaskByIdData = {
   taskId: string
   status?: TaskStatus

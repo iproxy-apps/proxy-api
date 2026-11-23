@@ -16,7 +16,6 @@ import type {
   CreateTaskResult,
   FetchTaskByIdData,
   FetchTasksQueryData,
-  UpdateTaskStatusData,
   FetchTaskUserMappingQueryData,
 } from '../types'
 import type { TasksRepositoryDTO } from '../dtos/tasks-repository.dto'
@@ -112,19 +111,6 @@ export class TasksRepository implements TasksRepositoryDTO {
       orderBy: { createdAt: 'desc' },
       take: perPage,
       skip,
-    })
-  }
-
-  async updateTaskStatus(data: UpdateTaskStatusData): Promise<void> {
-    await this.prisma.tasks.update({
-      where: { id: data.taskId },
-      data: {
-        status: data.status,
-        startedAt: data.startedAt,
-        completedAt: data.completedAt,
-        canceledAt: data.canceledAt,
-        proofImageUrl: data.filePath,
-      },
     })
   }
 

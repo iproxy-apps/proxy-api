@@ -23,7 +23,6 @@ export const createStripeServiceMock = (): jest.Mocked<StripeService> =>
       .mockResolvedValue({ id: 're_test_123', status: 'succeeded' }),
     createTransferFromCharge: jest.fn().mockResolvedValue({ id: 'tr_test_123' }),
     detachPaymentMethod: jest.fn().mockResolvedValue({ id: 'pm_test_123' }),
-    refundPayment: jest.fn().mockResolvedValue({ id: 're_test_123' }),
     reverseTransfer: jest.fn().mockResolvedValue({ id: 'trr_test_123' }),
     listPayoutTransactions: jest.fn().mockResolvedValue({ data: [] }),
     createMerchantAccount: jest.fn().mockResolvedValue({ id: 'acct_test_123' }),

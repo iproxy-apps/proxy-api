@@ -12,6 +12,7 @@ import { TasksModule } from 'src/modules/tasks/tasks.module'
 import { CardsModule } from 'src/modules/cards/cards.module'
 import { RatingsModule } from 'src/modules/ratings/ratings.module'
 import { PaymentsModule } from 'src/modules/payments/payments.module'
+import { PaymentsRepository } from 'src/modules/payments/repository/payments.repository'
 import { TestHooksModule } from 'src/modules/test-hooks/test-hooks.module'
 import { StripeWebhookModule } from 'src/modules/stripe-webhook/stripe-webhook.module'
 
@@ -46,12 +47,12 @@ describe('PrismaModule', () => {
     expect(providersOf(mod)).not.toContain(PrismaService)
   })
 
-  it('TasksModule gets payment services from PaymentsModule', () => {
+  it('TasksModule gets the payments repository from PaymentsModule', () => {
     expect(Reflect.getMetadata(MODULE_METADATA.IMPORTS, TasksModule)).toContain(
       PaymentsModule,
     )
     expect(
       Reflect.getMetadata(MODULE_METADATA.EXPORTS, PaymentsModule),
-    ).toHaveLength(3)
+    ).toEqual([PaymentsRepository])
   })
 })

@@ -130,12 +130,6 @@ export class StripeService {
     return await this.stripe.paymentMethods.detach(paymentMethodId)
   }
 
-  async refundPayment(paymentIntentId: string) {
-    return await this.stripe.refunds.create({
-      payment_intent: paymentIntentId,
-    })
-  }
-
   async reverseTransfer(transferId: string) {
     return await this.stripe.transfers.createReversal(transferId)
   }

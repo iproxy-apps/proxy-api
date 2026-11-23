@@ -1,22 +1,22 @@
-import { Injectable } from '@nestjs/common'
+import { Injectable, Logger } from '@nestjs/common'
 import { differenceInHours } from 'date-fns'
 
 import { StripeService } from 'src/stripe/stripe.service'
 import { AppException } from 'src/exception/app.exception'
 import { TasksRepository } from '../repository/tasks.repository'
 import { errorDictionary } from 'src/exception/error-dictionary'
-import { FetchPaymentRecordService } from 'src/modules/payments/use-cases/fetch-payment-record.service'
-import { UpdatePaymentRecordService } from 'src/modules/payments/use-cases/update-payment-record.service'
+import { PaymentsRepository } from 'src/modules/payments/repository/payments.repository'
 
 import type { CancelTaskData } from '../types'
 
 @Injectable()
 export class CancelTaskService {
+  private readonly logger = new Logger(CancelTaskService.name)
+
   constructor(
     private stripeService: StripeService,
     private tasksRepository: TasksRepository,
-    private fetchPaymentRecordService: FetchPaymentRecordService,
-    private updatePaymentRecordService: UpdatePaymentRecordService,
+    private paymentsRepository: PaymentsRepository,
   ) {}
 
   async execute(data: CancelTaskData): Promise<void> {
@@ -46,37 +46,86 @@ export class CancelTaskService {
       }
     }
 
-    // Refund the pre-authorized payment if one exists. `available` tasks
-    // won't have a payment record yet — the Proxy creates it on `/tasks/start`.
-    const paymentRecord = await this.fetchPaymentRecordService.execute(taskId)
-    let refundId: string | undefined
-
-    if (paymentRecord) {
-      try {
-        const refund = await this.stripeService.refundPayment(
-          paymentRecord.paymentIntent,
-        )
-        if (!refund || refund.status !== 'succeeded') {
-          throw new AppException(errorDictionary.payment.refundFailed)
-        }
-        refundId = refund.id
-      } catch (error) {
-        if (error instanceof AppException) throw error
-        throw new AppException(errorDictionary.payment.refundFailed)
-      }
+    // a disputed payment blocks the cancel before anything is written
+    const payment = await this.paymentsRepository.fetchLatestByTaskId(taskId)
+    if (payment?.status === 'disputed') {
+      throw new AppException(errorDictionary.payment.disputed)
     }
 
-    await this.tasksRepository.updateTaskStatus({
+    // CAS before the Stripe call: only one concurrent cancel gets past here
+    const originalStatus = task.status
+    const claimed = await this.tasksRepository.transition({
       taskId,
-      status: 'canceled',
-      canceledAt: new Date(),
+      from: [originalStatus],
+      to: 'canceled',
+      data: { canceledAt: new Date() },
     })
+    if (!claimed) {
+      throw new AppException(errorDictionary.tasks.statusConflict)
+    }
 
-    if (paymentRecord && refundId) {
-      await this.updatePaymentRecordService.execute(taskId, {
-        ...paymentRecord,
-        refundId,
-      })
+    let refunded: { paymentId: string; refundId: string } | null = null
+    try {
+      switch (payment?.status) {
+        case 'pending':
+          // only rows created before this phase; the start no longer writes one
+          this.logger.warn(
+            `legacy pending payment ${payment.id} on canceled task ${taskId}`,
+          )
+          break
+        case 'succeeded': {
+          // full refund (no amount); the key is shared with the webhook refund
+          const refund = await this.stripeService.refundPaymentIntent(
+            payment.paymentIntent,
+            `task:${taskId}:refund`,
+          )
+          if (
+            !refund ||
+            (refund.status !== 'succeeded' && refund.status !== 'pending')
+          ) {
+            throw new AppException(errorDictionary.payment.refundFailed)
+          }
+          refunded = { paymentId: payment.id, refundId: refund.id }
+          break
+        }
+        default:
+          // no payment, failed or already refunded: nothing to return
+          break
+      }
+    } catch (error) {
+      this.logger.error(`refund for task ${taskId} failed: ${String(error)}`)
+      try {
+        const reverted = await this.tasksRepository.transition({
+          taskId,
+          from: ['canceled'],
+          to: originalStatus,
+          data: { canceledAt: null },
+        })
+        if (!reverted) {
+          this.logger.error(`revert of task ${taskId} matched no row`)
+        }
+      } catch (revertError) {
+        this.logger.error(
+          `revert of task ${taskId} to ${originalStatus} failed: ${String(revertError)}`,
+        )
+      }
+      throw new AppException(errorDictionary.payment.refundFailed)
+    }
+
+    if (refunded) {
+      // Stripe accepted the refund: the task stays canceled whatever happens
+      // here (the charge.refunded webhook repairs the payment row)
+      try {
+        await this.paymentsRepository.updateById(refunded.paymentId, {
+          status: 'refunded',
+          refundId: refunded.refundId,
+        })
+      } catch (error) {
+        this.logger.error(
+          `task ${taskId} refunded by ${refunded.refundId} but payment ${refunded.paymentId} not marked refunded: ${String(error)}`,
+        )
+        throw error
+      }
     }
   }
 }
