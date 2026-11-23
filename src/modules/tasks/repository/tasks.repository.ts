@@ -105,17 +105,18 @@ export class TasksRepository implements TasksRepositoryDTO {
   async fetchAllTasks({
     city,
     skip,
-    perPage,
+    take,
   }: FetchTasksQueryData): Promise<FetchTasksResult[]> {
     return await this.prisma.tasks.findMany({
       select: taskSelect,
       where: {
         status: 'available',
         ownerId: { isDeleted: false },
-        locationAddress: { contains: city },
+        // exact canonical match: rows backfilled by P2-T11 with raw city text will not appear until normalised
+        city,
       },
       orderBy: { createdAt: 'desc' },
-      take: perPage,
+      take,
       skip,
     })
   }

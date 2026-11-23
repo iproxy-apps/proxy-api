@@ -1,24 +1,35 @@
 import { Injectable } from '@nestjs/common'
 
+import { matchServedCity } from 'src/common/served-cities'
 import { TasksRepository } from '../repository/tasks.repository'
 
-import type { FetchTasksData, FetchTasksResult } from '../types'
+import type { FetchTasksData, FetchTasksResponse } from '../types'
+
+export const TASKS_PER_PAGE = 10
 
 @Injectable()
 export class FetchTasksService {
   constructor(private tasksRepository: TasksRepository) {}
 
-  async execute(data: FetchTasksData): Promise<FetchTasksResult[]> {
+  async execute(data: FetchTasksData): Promise<FetchTasksResponse> {
     const { page, city } = data
 
-    const perPage = 10
-    const skip = (page - 1) * perPage
-    const tasks = await this.tasksRepository.fetchAllTasks({
-      perPage,
-      skip,
-      city,
+    const served = matchServedCity(city)
+    if (!served) {
+      return { items: [], page, perPage: TASKS_PER_PAGE, hasMore: false }
+    }
+
+    const rows = await this.tasksRepository.fetchAllTasks({
+      city: served.city,
+      skip: (page - 1) * TASKS_PER_PAGE,
+      take: TASKS_PER_PAGE + 1,
     })
 
-    return tasks
+    return {
+      items: rows.slice(0, TASKS_PER_PAGE),
+      page,
+      perPage: TASKS_PER_PAGE,
+      hasMore: rows.length > TASKS_PER_PAGE,
+    }
   }
 }

@@ -1,4 +1,4 @@
-import { FetchTasksService } from './fetch-tasks.service'
+import { FetchTasksService, TASKS_PER_PAGE } from './fetch-tasks.service'
 import { makeTaskDetails } from '../test-utils/task.factory'
 import { TasksRepository } from '../repository/tasks.repository'
 
@@ -16,30 +16,52 @@ describe('FetchTasksService', () => {
     )
   })
 
-  it('computes skip from page number with a fixed perPage of 10', async () => {
-    tasksRepository.fetchAllTasks.mockResolvedValue([])
+  it('returns the empty page without touching the repository for an unserved city', async () => {
+    const result = await service.execute({ city: 'Curitiba', page: 1 })
 
-    await service.execute({ page: 1, city: 'São Paulo' })
-    expect(tasksRepository.fetchAllTasks).toHaveBeenLastCalledWith({
-      skip: 0,
-      perPage: 10,
-      city: 'São Paulo',
-    })
-
-    await service.execute({ page: 3, city: 'São Paulo' })
-    expect(tasksRepository.fetchAllTasks).toHaveBeenLastCalledWith({
-      skip: 20,
-      perPage: 10,
-      city: 'São Paulo',
+    expect(tasksRepository.fetchAllTasks).not.toHaveBeenCalled()
+    expect(result).toEqual({
+      items: [],
+      page: 1,
+      perPage: TASKS_PER_PAGE,
+      hasMore: false,
     })
   })
 
-  it('returns the tasks from the repository as-is', async () => {
-    const tasks = [makeTaskDetails({ id: 't1' }), makeTaskDetails({ id: 't2' })]
-    tasksRepository.fetchAllTasks.mockResolvedValue(tasks)
+  it('canonicalises the city and computes skip/take from the page', async () => {
+    tasksRepository.fetchAllTasks.mockResolvedValue([])
 
-    const result = await service.execute({ page: 1, city: 'SP' })
+    await service.execute({ city: 'são paulo', page: 2 })
 
-    expect(result).toBe(tasks)
+    expect(tasksRepository.fetchAllTasks).toHaveBeenCalledWith({
+      city: 'São Paulo',
+      skip: 10,
+      take: 11,
+    })
+  })
+
+  it('slices the extra row and flags hasMore', async () => {
+    const rows = Array.from({ length: 11 }, (_, i) =>
+      makeTaskDetails({ id: `t${i}` }),
+    )
+    tasksRepository.fetchAllTasks.mockResolvedValue(rows)
+
+    const result = await service.execute({ city: 'São Paulo', page: 1 })
+
+    expect(result.items).toHaveLength(10)
+    expect(result.hasMore).toBe(true)
+    expect(result.page).toBe(1)
+    expect(result.perPage).toBe(10)
+  })
+
+  it('reports hasMore false when the page is not overfull', async () => {
+    tasksRepository.fetchAllTasks.mockResolvedValue([
+      makeTaskDetails({ id: 't1' }),
+    ])
+
+    const result = await service.execute({ city: 'São Paulo', page: 3 })
+
+    expect(result.items).toHaveLength(1)
+    expect(result.hasMore).toBe(false)
   })
 })

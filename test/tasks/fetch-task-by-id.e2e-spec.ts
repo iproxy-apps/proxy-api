@@ -104,7 +104,7 @@ describe('GET /tasks/:id (e2e)', () => {
       .set('Authorization', `Bearer ${user.token}`)
 
     expect(response.status).toBe(200)
-    expect(Array.isArray(response.body)).toBe(true)
+    expect(Array.isArray(response.body.items)).toBe(true)
   })
 
   it('returns 404 when a CLIENT tries to view another user\'s task', async () => {

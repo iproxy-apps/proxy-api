@@ -60,9 +60,9 @@ export type FetchTasksData = {
 }
 
 export type FetchTasksQueryData = {
-  perPage: number
-  skip: number
   city: string
+  skip: number
+  take: number
 }
 
 export type FetchTaskByIdData = {
@@ -181,4 +181,11 @@ export type RecordTransferData = {
 export type StaleTask = {
   id: string
   owner: string
+}
+
+export type FetchTasksResponse = {
+  items: FetchTasksResult[]
+  page: number
+  perPage: number
+  hasMore: boolean
 }

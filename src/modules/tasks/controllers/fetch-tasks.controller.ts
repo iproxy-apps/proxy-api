@@ -6,13 +6,8 @@ import { JwtAuthGuard } from 'src/modules/auth/utils/jwt-auth.guard'
 import { FetchTasksService } from '../use-cases/fetch-tasks.service'
 
 const querySchema = z.object({
-  city: z.string(),
-  page: z
-    .string()
-    .optional()
-    .default('1')
-    .transform(Number)
-    .pipe(z.number().min(1)),
+  city: z.string().trim().min(1).max(60),
+  page: z.coerce.number().int().min(1).max(10_000).default(1),
 })
 
 type QuerySchema = z.infer<typeof querySchema>

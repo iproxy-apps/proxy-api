@@ -48,7 +48,12 @@ describe('GET /tasks/fetch (e2e)', () => {
       .set('Authorization', `Bearer ${user.token}`)
 
     expect(response.status).toBe(200)
-    expect(response.body).toEqual([])
+    expect(response.body).toEqual({
+      items: [],
+      page: 1,
+      perPage: 10,
+      hasMore: false,
+    })
   })
 
   it('returns available tasks matching the city filter', async () => {
@@ -71,10 +76,115 @@ describe('GET /tasks/fetch (e2e)', () => {
       .set('Authorization', `Bearer ${owner.token}`)
 
     expect(response.status).toBe(200)
-    expect(response.body).toHaveLength(1)
-    expect(response.body[0]).toMatchObject({
+    expect(response.body.items).toHaveLength(1)
+    expect(response.body.items[0]).toMatchObject({
       status: 'available',
       locationAddress: 'São Paulo',
+    })
+  })
+
+  it('returns the empty page shape for an unserved city', async () => {
+    const user = await createUser(ctx.app, ctx.prisma)
+
+    const response = await request(ctx.app.getHttpServer())
+      .get('/tasks/fetch?city=Curitiba')
+      .set('Authorization', `Bearer ${user.token}`)
+
+    expect(response.status).toBe(200)
+    expect(response.body).toEqual({
+      items: [],
+      page: 1,
+      perPage: 10,
+      hasMore: false,
+    })
+  })
+
+  it('matches the city case- and accent-insensitively', async () => {
+    const owner = await createUser(ctx.app, ctx.prisma)
+    await createTask(ctx.prisma, owner.id)
+
+    const response = await request(ctx.app.getHttpServer())
+      .get('/tasks/fetch?city=sao paulo')
+      .set('Authorization', `Bearer ${owner.token}`)
+
+    expect(response.status).toBe(200)
+    expect(response.body.items[0].city).toBe('São Paulo')
+  })
+
+  it('does not match by address substring', async () => {
+    const owner = await createUser(ctx.app, ctx.prisma)
+    await createTask(ctx.prisma, owner.id, {
+      city: 'Rio de Janeiro',
+      state: 'RJ',
+      locationAddress: 'Rua São Paulo, Rio de Janeiro - RJ, 20000-000',
+    })
+
+    const response = await request(ctx.app.getHttpServer())
+      .get('/tasks/fetch?city=São Paulo')
+      .set('Authorization', `Bearer ${owner.token}`)
+
+    expect(response.status).toBe(200)
+    expect(response.body.items).toHaveLength(0)
+  })
+
+  it('paginates 11 tasks into 10 + 1 with hasMore', async () => {
+    const owner = await createUser(ctx.app, ctx.prisma)
+    for (let i = 0; i < 11; i++) {
+      await createTask(ctx.prisma, owner.id, { title: `Task ${i}` })
+    }
+
+    const first = await request(ctx.app.getHttpServer())
+      .get('/tasks/fetch?city=São Paulo&page=1')
+      .set('Authorization', `Bearer ${owner.token}`)
+    expect(first.status).toBe(200)
+    expect(first.body.items).toHaveLength(10)
+    expect(first.body.hasMore).toBe(true)
+    expect(first.body.page).toBe(1)
+
+    const second = await request(ctx.app.getHttpServer())
+      .get('/tasks/fetch?city=São Paulo&page=2')
+      .set('Authorization', `Bearer ${owner.token}`)
+    expect(second.status).toBe(200)
+    expect(second.body.items).toHaveLength(1)
+    expect(second.body.hasMore).toBe(false)
+    expect(second.body.page).toBe(2)
+  })
+
+  it('rejects page=0', async () => {
+    const user = await createUser(ctx.app, ctx.prisma)
+
+    const response = await request(ctx.app.getHttpServer())
+      .get('/tasks/fetch?city=São Paulo&page=0')
+      .set('Authorization', `Bearer ${user.token}`)
+
+    expect(response.status).toBe(400)
+  })
+
+  it('rejects an out-of-range page', async () => {
+    const user = await createUser(ctx.app, ctx.prisma)
+
+    const response = await request(ctx.app.getHttpServer())
+      .get('/tasks/fetch?city=São Paulo&page=1000000000000')
+      .set('Authorization', `Bearer ${user.token}`)
+
+    expect(response.status).toBe(400)
+    expect(response.body).toMatchObject({ errorCode: 'VALIDATION_FAILED' })
+  })
+
+  it('returns an empty page past the last one', async () => {
+    const owner = await createUser(ctx.app, ctx.prisma)
+    await createTask(ctx.prisma, owner.id)
+
+    const response = await request(ctx.app.getHttpServer())
+      .get('/tasks/fetch?city=São Paulo&page=50')
+      .set('Authorization', `Bearer ${owner.token}`)
+
+    expect(response.status).toBe(200)
+    expect(response.body).toEqual({
+      items: [],
+      page: 50,
+      perPage: 10,
+      hasMore: false,
     })
   })
 })

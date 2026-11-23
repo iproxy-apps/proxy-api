@@ -104,7 +104,7 @@ describe('GET /tasks/active (e2e)', () => {
       .get('/tasks/fetch?city=SP')
       .set('Authorization', `Bearer ${user.token}`)
     expect(fetchResponse.status).toBe(200)
-    expect(Array.isArray(fetchResponse.body)).toBe(true)
+    expect(Array.isArray(fetchResponse.body.items)).toBe(true)
 
     const missingByIdResponse = await request(ctx.app.getHttpServer())
       .get('/tasks/00000000-0000-0000-0000-000000000000')
