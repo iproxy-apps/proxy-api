@@ -60,5 +60,6 @@ generated
 .env
 data
 src/tmp/
+tmp/
 .dev-stack/
 test/.env.test

@@ -20,6 +20,13 @@ export const envSchema = z.object({
   AWS_SECRET_ACCESS_KEY: z.string(),
   AWS_SES_FROM_EMAIL: z.string(),
   LOOP_TEST_HOOKS: z.enum(['0', '1']).default('0'),
+  // proof storage: S3-compatible (Cloudflare R2) when S3_BUCKET is set, else local disk
+  S3_ENDPOINT: z.string().optional(),
+  S3_REGION: z.string().optional(),
+  S3_BUCKET: z.string().optional(),
+  S3_ACCESS_KEY_ID: z.string().optional(),
+  S3_SECRET_ACCESS_KEY: z.string().optional(),
+  PROOF_DIR: z.string().optional(),
 })
 
 export type Env = z.infer<typeof envSchema>

@@ -1,4 +1,5 @@
-import { resolve } from 'node:path'
+import { join, resolve } from 'node:path'
+import { tmpdir } from 'node:os'
 import { writeFileSync } from 'node:fs'
 import { execSync } from 'node:child_process'
 import { generateKeyPairSync } from 'node:crypto'
@@ -45,6 +46,7 @@ export default async function globalSetup() {
     `AWS_SES_FROM_EMAIL=test@example.com`,
     `DEV_CALLBACK_URL=http://localhost:3000/callback`,
     `PROD_CALLBACK_URL=http://localhost:3000/callback`,
+    `PROOF_DIR=${join(tmpdir(), 'proxy-proofs-e2e')}`,
   ].join('\n')
 
   writeFileSync(TEST_ENV_PATH, envContent)

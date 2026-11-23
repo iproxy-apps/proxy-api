@@ -16,6 +16,7 @@ import { TestHooksModule } from './modules/test-hooks/test-hooks.module'
 import { isTestHooksEnabled } from './modules/test-hooks/test-hooks.guard'
 import { StripeWebhookModule } from './modules/stripe-webhook/stripe-webhook.module'
 import { HealthModule } from './health/health.module'
+import { StorageModule } from './storage/storage.module'
 
 @Module({
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
@@ -26,6 +27,7 @@ import { HealthModule } from './health/health.module'
     }),
 
     PrismaModule,
+    StorageModule,
 
     ThrottlerModule.forRoot({
       throttlers: [{ ttl: 60_000, limit: 100 }],
