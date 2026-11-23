@@ -1,6 +1,4 @@
 import { rm } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
 import type { StartedPostgreSqlContainer } from '@testcontainers/postgresql'
 
 export default async function globalTeardown() {
@@ -9,5 +7,10 @@ export default async function globalTeardown() {
   }
 
   await globalAny.__PG_CONTAINER__?.stop()
-  await rm(join(tmpdir(), 'proxy-proofs-e2e'), { recursive: true, force: true })
+  if (process.env.PROOF_DIR) {
+    await rm(process.env.PROOF_DIR, { recursive: true, force: true })
+  }
+  if (process.env.PROXY_TEST_ENV_FILE) {
+    await rm(process.env.PROXY_TEST_ENV_FILE, { force: true })
+  }
 }

@@ -62,3 +62,4 @@ src/tmp/
 tmp/
 .dev-stack/
 test/.env.test
+test/.env.test.*
