@@ -1,4 +1,3 @@
-import { createReadStream } from 'fs'
 import {
   Controller,
   Get,
@@ -27,13 +26,11 @@ export class FetchTaskProofController {
     @Param('id', new ZodValidationPipe(z.uuid())) id: string,
     @User() user: SessionPayload,
   ): Promise<StreamableFile> {
-    const { absolutePath, mimeType } = await this.fetchTaskProofService.execute(
+    const { stream, mimeType } = await this.fetchTaskProofService.execute(
       id,
       { userId: user.sub },
     )
 
-    return new StreamableFile(createReadStream(absolutePath), {
-      type: mimeType,
-    })
+    return new StreamableFile(stream, { type: mimeType })
   }
 }

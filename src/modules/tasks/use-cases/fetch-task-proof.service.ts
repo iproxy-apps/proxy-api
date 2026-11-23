@@ -1,23 +1,30 @@
-import { join } from 'path'
-import { existsSync } from 'fs'
-import { Injectable } from '@nestjs/common'
+import { Inject, Injectable, Logger } from '@nestjs/common'
 
 import { AppException } from 'src/exception/app.exception'
 import { TasksRepository } from '../repository/tasks.repository'
 import { errorDictionary } from 'src/exception/error-dictionary'
+import { PROOF_STORAGE, ProofNotFoundError } from 'src/storage/proof-storage'
+
+import type { Readable } from 'node:stream'
+import type { ProofStorage } from 'src/storage/proof-storage'
 
 type Requester = {
   userId: string
 }
 
 export type FetchTaskProofResult = {
-  absolutePath: string
+  stream: Readable
   mimeType: string
 }
 
 @Injectable()
 export class FetchTaskProofService {
-  constructor(private tasksRepository: TasksRepository) {}
+  private readonly logger = new Logger(FetchTaskProofService.name)
+
+  constructor(
+    private tasksRepository: TasksRepository,
+    @Inject(PROOF_STORAGE) private storage: ProofStorage,
+  ) {}
 
   async execute(
     taskId: string,
@@ -42,28 +49,26 @@ export class FetchTaskProofService {
       throw new AppException(errorDictionary.tasks.taskNotFound)
     }
 
-    const absolutePath = join(
-      process.cwd(),
-      'src',
-      'tmp',
-      task.proofImageUrl,
-    )
-
-    if (!existsSync(absolutePath)) {
+    try {
+      const stream = await this.storage.getStream(task.proofImageUrl)
+      return { stream, mimeType: mimeTypeFromPath(task.proofImageUrl) }
+    } catch (error) {
+      if (!(error instanceof ProofNotFoundError)) {
+        this.logger.error(
+          `Failed to read proof ${task.proofImageUrl}`,
+          error instanceof Error ? error.stack : undefined,
+        )
+      }
       throw new AppException(errorDictionary.tasks.taskNotFound)
-    }
-
-    return {
-      absolutePath,
-      mimeType: mimeTypeFromPath(task.proofImageUrl),
     }
   }
 }
 
-function mimeTypeFromPath(path: string): string {
+export function mimeTypeFromPath(path: string): string {
   const lower = path.toLowerCase()
   if (lower.endsWith('.png')) return 'image/png'
   if (lower.endsWith('.webp')) return 'image/webp'
   if (lower.endsWith('.heic')) return 'image/heic'
+  if (lower.endsWith('.heif')) return 'image/heif'
   return 'image/jpeg'
 }

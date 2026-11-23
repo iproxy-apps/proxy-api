@@ -3,23 +3,6 @@ import { memoryStorage } from 'multer'
 import { AppException } from 'src/exception/app.exception'
 import { errorDictionary } from 'src/exception/error-dictionary'
 
-export function imageExtensionFromMime(mime: string) {
-  switch (mime) {
-    case 'image/jpeg':
-      return '.jpg'
-    case 'image/png':
-      return '.png'
-    case 'image/webp':
-      return '.webp'
-    case 'image/heic':
-      return '.heic'
-    case 'image/heif':
-      return '.heif'
-    default:
-      return null
-  }
-}
-
 export const multerOptions = {
   limits: {
     fileSize: 10 * 1024 * 1024, // 10MB

@@ -133,23 +133,22 @@ export const errorDictionary = {
       errorCode: 'TASK_MAPPING_NOT_FOUND',
     } as const,
 
+    proofPhotoRequired: {
+      message: 'Envie uma foto de comprovação para finalizar a tarefa.',
+      statusCode: HttpStatus.BAD_REQUEST,
+      errorCode: 'PROOF_PHOTO_REQUIRED',
+    } as const,
+
+    statusConflict: {
+      message: 'A tarefa mudou de estado. Atualize a tela e tente novamente.',
+      statusCode: HttpStatus.CONFLICT,
+      errorCode: 'TASK_STATUS_CONFLICT',
+    } as const,
+
     cannotFinishTask: {
       message: 'Você não tem permissão para finalizar esta tarefa.',
       statusCode: HttpStatus.FORBIDDEN,
       errorCode: 'CANNOT_FINISH_TASK',
-    } as const,
-
-    taskStartedAtNotValid: {
-      message:
-        'A tarefa não pode ser finalizada após mais de 1 hora do seu início.',
-      statusCode: HttpStatus.BAD_REQUEST,
-      errorCode: 'TASK_STARTED_AT_NOT_VALID',
-    } as const,
-
-    taskNotAvailableForValidation: {
-      message: 'A tarefa não está em estado de validação.',
-      statusCode: HttpStatus.BAD_REQUEST,
-      errorCode: 'TASK_NOT_AVAILABLE_FOR_VALIDATION',
     } as const,
 
     cannotValidateTask: {
@@ -192,10 +191,10 @@ export const errorDictionary = {
       errorCode: 'PAYMENT_PENDING',
     } as const,
 
-    transferFailed: {
-      message: 'Falha ao criar transferência.',
-      statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
-      errorCode: 'TRANSFER_FAILED',
+    disputed: {
+      message: 'O pagamento desta tarefa está em disputa. Fale com o suporte.',
+      statusCode: HttpStatus.CONFLICT,
+      errorCode: 'PAYMENT_DISPUTED',
     } as const,
 
     refundFailed: {

@@ -1,16 +1,26 @@
+import { promises as fs } from 'fs'
+import { join } from 'path'
 import request from 'supertest'
+import sharp from 'sharp'
 
 import { createTask } from '../factories/task.factory'
 import { createUser } from '../factories/user.factory'
+import { createPayment } from '../factories/payment.factory'
 import { createTestApp, resetDatabase } from '../setup/test-app.factory'
 
 import type { TestAppContext } from '../setup/test-app.factory'
 
 describe('POST /tasks/finish (e2e)', () => {
   let ctx: TestAppContext
+  let png: Buffer
 
   beforeAll(async () => {
     ctx = await createTestApp()
+    png = await sharp({
+      create: { width: 10, height: 10, channels: 3, background: '#0f0' },
+    })
+      .png()
+      .toBuffer()
   })
 
   afterAll(async () => {
@@ -75,7 +85,7 @@ describe('POST /tasks/finish (e2e)', () => {
     expect(response.body).toMatchObject({ errorCode: 'CANNOT_FINISH_TASK' })
   })
 
-  it('marks the task as verification_required without a proof file', async () => {
+  it('requires a proof photo', async () => {
     const { proxy, task } = await seedInProgressTask()
 
     const response = await request(ctx.app.getHttpServer())
@@ -83,12 +93,86 @@ describe('POST /tasks/finish (e2e)', () => {
       .set('Authorization', `Bearer ${proxy.token}`)
       .field('taskId', task.id)
 
+    expect(response.status).toBe(400)
+    expect(response.body).toMatchObject({ errorCode: 'PROOF_PHOTO_REQUIRED' })
+
+    const stored = await ctx.prisma.tasks.findUniqueOrThrow({
+      where: { id: task.id },
+    })
+    expect(stored.status).toBe('in_progress')
+    expect(stored.completedAt).toBeNull()
+  })
+
+  it('stores the normalised proof and marks verification_required', async () => {
+    const { proxy, task } = await seedInProgressTask()
+
+    const response = await request(ctx.app.getHttpServer())
+      .post('/tasks/finish')
+      .set('Authorization', `Bearer ${proxy.token}`)
+      .field('taskId', task.id)
+      .attach('file', png, { filename: 'proof.png', contentType: 'image/png' })
+
     expect(response.status).toBe(200)
 
-    const updated = await ctx.prisma.tasks.findUnique({ where: { id: task.id } })
-    expect(updated?.status).toBe('verification_required')
-    expect(updated?.proofImageUrl).toBeNull()
-    expect(updated?.completedAt).not.toBeNull()
+    const updated = await ctx.prisma.tasks.findUniqueOrThrow({
+      where: { id: task.id },
+    })
+    expect(updated.status).toBe('verification_required')
+    expect(updated.completedAt).not.toBeNull()
+    expect(updated.proofImageUrl).toMatch(
+      new RegExp(`^${task.id}/[0-9a-f-]{36}\\.jpg$`),
+    )
+
+    const bytes = await fs.readFile(
+      join(process.env.PROOF_DIR!, updated.proofImageUrl!),
+    )
+    expect(bytes.subarray(0, 2)).toEqual(Buffer.from([0xff, 0xd8]))
+  })
+
+  it('rejects files whose bytes are not an image', async () => {
+    const { proxy, task } = await seedInProgressTask()
+
+    const response = await request(ctx.app.getHttpServer())
+      .post('/tasks/finish')
+      .set('Authorization', `Bearer ${proxy.token}`)
+      .field('taskId', task.id)
+      .attach('file', Buffer.from('garbage'), {
+        filename: 'p.png',
+        contentType: 'image/png',
+      })
+
+    expect(response.status).toBe(400)
+    expect(response.body).toMatchObject({
+      errorCode: 'FILE_FORMAT_NOT_SUPPORTED',
+    })
+
+    const stored = await ctx.prisma.tasks.findUniqueOrThrow({
+      where: { id: task.id },
+    })
+    expect(stored.status).toBe('in_progress')
+  })
+
+  it('refuses to finish when the payment is disputed', async () => {
+    const { proxy, task } = await seedInProgressTask()
+    await createPayment(ctx.prisma, task.id, {
+      status: 'disputed',
+      disputeId: 'dp_1',
+    })
+
+    const response = await request(ctx.app.getHttpServer())
+      .post('/tasks/finish')
+      .set('Authorization', `Bearer ${proxy.token}`)
+      .field('taskId', task.id)
+      .attach('file', png, { filename: 'proof.png', contentType: 'image/png' })
+
+    expect(response.status).toBe(409)
+    expect(response.body).toMatchObject({ errorCode: 'PAYMENT_DISPUTED' })
+
+    const stored = await ctx.prisma.tasks.findUniqueOrThrow({
+      where: { id: task.id },
+    })
+    expect(stored.status).toBe('in_progress')
+    expect(stored.proofImageUrl).toBeNull()
   })
 
   it('rejects a proof above 10 MB with a Portuguese 413', async () => {

@@ -1,17 +1,25 @@
-import { join } from 'path'
-import { Injectable } from '@nestjs/common'
-import { mkdirSync, writeFileSync } from 'fs'
+import { randomUUID } from 'node:crypto'
+import { Inject, Injectable, Logger } from '@nestjs/common'
 
 import { AppException } from 'src/exception/app.exception'
 import { TasksRepository } from '../repository/tasks.repository'
 import { errorDictionary } from 'src/exception/error-dictionary'
-import { imageExtensionFromMime } from 'src/pipes/multer-validation.pipe'
+import { normalizeProofImage } from '../utils/proof-image'
+import { PROOF_STORAGE } from 'src/storage/proof-storage'
+import { PaymentsRepository } from 'src/modules/payments/repository/payments.repository'
 
+import type { ProofStorage } from 'src/storage/proof-storage'
 import type { FinishTaskData } from '../types'
 
 @Injectable()
 export class FinishTaskService {
-  constructor(private tasksRepository: TasksRepository) {}
+  private readonly logger = new Logger(FinishTaskService.name)
+
+  constructor(
+    private tasksRepository: TasksRepository,
+    private paymentsRepository: PaymentsRepository,
+    @Inject(PROOF_STORAGE) private storage: ProofStorage,
+  ) {}
 
   async execute(data: FinishTaskData): Promise<void> {
     const { taskId, userId, file } = data
@@ -21,11 +29,7 @@ export class FinishTaskService {
       status: 'in_progress',
     })
 
-    // validations
     if (!taskDetails) throw new AppException(errorDictionary.tasks.taskNotFound)
-    if (taskDetails.status !== 'in_progress') {
-      throw new AppException(errorDictionary.tasks.taskNotAvailable)
-    }
 
     const taskMapping =
       await this.tasksRepository.fetchTaskMappingByTaskId(taskId)
@@ -38,34 +42,42 @@ export class FinishTaskService {
       throw new AppException(errorDictionary.tasks.cannotFinishTask)
     }
 
-    // NOTE: there is no time-based cutoff on finishing a task. The 1h grace
-    // window only applies to the client's *cancel* action, which protects
-    // the pre-authorized payment; the proxy's *finish* action is bounded
-    // only by the `in_progress` status guard above.
-
-    // save file to disk only after all validations pass
-    let filePath: string | null = null
-
-    if (file) {
-      const ext = imageExtensionFromMime(file.mimetype)
-      const unique = `${Date.now()}-${Math.round(Math.random() * 1e9)}`
-      const filename = `${unique}${ext}`
-
-      const baseTmpPath = join(process.cwd(), 'src', 'tmp')
-      const taskFolderPath = join(baseTmpPath, taskId)
-
-      mkdirSync(taskFolderPath, { recursive: true })
-      writeFileSync(join(taskFolderPath, filename), file.buffer)
-
-      filePath = `${taskId}/${filename}`
+    if (!file) {
+      throw new AppException(errorDictionary.tasks.proofPhotoRequired)
     }
 
-    // mark as awaiting client validation; completedAt records when the proxy finished
-    await this.tasksRepository.updateTaskStatus({
+    const payment = await this.paymentsRepository.fetchLatestByTaskId(taskId)
+    if (payment?.status === 'disputed') {
+      throw new AppException(errorDictionary.payment.disputed)
+    }
+
+    // NOTE: there is no time-based cutoff on finishing a task. The 1h grace
+    // window only applies to the client's *cancel* action; the proxy's
+    // *finish* action is bounded only by the `in_progress` status guard.
+
+    const normalized = await normalizeProofImage(file.buffer)
+    const key = `${taskId}/${randomUUID()}.jpg`
+
+    try {
+      await this.storage.put(key, normalized.buffer, 'image/jpeg')
+    } catch (error) {
+      this.logger.error(
+        `Failed to store proof ${key}`,
+        error instanceof Error ? error.stack : undefined,
+      )
+      throw new AppException(errorDictionary.file.uploadFailed)
+    }
+
+    const transitioned = await this.tasksRepository.transition({
       taskId,
-      filePath,
-      completedAt: new Date(),
-      status: 'verification_required',
+      from: ['in_progress'],
+      to: 'verification_required',
+      data: { completedAt: new Date(), proofImageUrl: key },
     })
+
+    if (!transitioned) {
+      this.logger.warn(`Orphan proof object left in storage: ${key}`)
+      throw new AppException(errorDictionary.tasks.statusConflict)
+    }
   }
 }
