@@ -7,14 +7,13 @@ const { publicKey, privateKey } = generateKeyPairSync('rsa', {
 })
 
 const defaults: Record<string, string> = {
+  NODE_ENV: 'test',
   DATABASE_URL: 'postgresql://test:test@localhost:5432/proxy_unit',
   JWT_PRIVATE_KEY: Buffer.from(privateKey).toString('base64'),
   JWT_PUBLIC_KEY: Buffer.from(publicKey).toString('base64'),
   STRIPE_SECRET_KEY: 'sk_test_dummy',
-  STRIPE_PUBLIC_KEY: 'pk_test_dummy',
   STRIPE_WEBHOOK_SECRET: 'whsec_test_dummy',
-  DEV_CALLBACK_URL: 'http://localhost:3000/callback',
-  PROD_CALLBACK_URL: 'http://localhost:3000/callback',
+  STRIPE_CONNECT_RETURN_URL: 'http://localhost:3000/callback',
   AWS_ACCESS_KEY_ID: 'dummy',
   AWS_SECRET_ACCESS_KEY: 'dummy',
   AWS_SES_FROM_EMAIL: 'test@example.com',

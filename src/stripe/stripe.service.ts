@@ -156,15 +156,18 @@ export class StripeService {
   async createMerchantAccount(data: CreateMerchantAccountData) {
     const { email, lastName, firstName, phoneNumber } = data
     return await this.stripe.accounts.create({
+      country: 'BR',
+      default_currency: 'brl',
       email,
       business_type: 'individual',
       business_profile: {
         product_description: 'Merchant account for a proxy',
       },
+      capabilities: { transfers: { requested: true } },
       individual: {
         first_name: firstName,
         last_name: lastName,
-        phone: phoneNumber,
+        ...(phoneNumber ? { phone: phoneNumber } : {}),
       },
       controller: {
         stripe_dashboard: {
@@ -180,11 +183,15 @@ export class StripeService {
     })
   }
 
-  async linkMerchantAccount({ account, url }: LinkMerchantAccountData) {
+  async linkMerchantAccount({
+    account,
+    returnUrl,
+    refreshUrl,
+  }: LinkMerchantAccountData) {
     return await this.stripe.accountLinks.create({
       account,
-      return_url: url,
-      refresh_url: url,
+      return_url: returnUrl,
+      refresh_url: refreshUrl,
       type: 'account_onboarding',
       collection_options: {
         fields: 'currently_due',

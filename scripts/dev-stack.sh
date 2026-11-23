@@ -176,7 +176,10 @@ cmd_up() {
   # so `down` can kill the whole npm -> nest -> node tree.
   set -m
   # DEV_STACK_TEST_HOOKS=0 starts the api without the loop hooks (throttler active, /__test/* 404).
-  LOOP_TEST_HOOKS="${DEV_STACK_TEST_HOOKS:-1}" STRIPE_WEBHOOK_SECRET="$secret" \
+  # The owner's .env may lack these; the env schema requires them (fallbacks only, .env is never written).
+  NODE_ENV="${NODE_ENV:-development}" \
+    STRIPE_CONNECT_RETURN_URL="${STRIPE_CONNECT_RETURN_URL:-http://localhost:3000/callback}" \
+    LOOP_TEST_HOOKS="${DEV_STACK_TEST_HOOKS:-1}" STRIPE_WEBHOOK_SECRET="$secret" \
     nohup npm run start:dev:api >"$STATE/api.log" 2>&1 &
   api_pid=$!
   nohup stripe listen --forward-to "localhost:${API_PORT}/stripe/webhook" \

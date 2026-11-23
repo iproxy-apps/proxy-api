@@ -29,9 +29,13 @@ export class CreateMerchantAccountService {
 
     if (!userDetails) throw new AppException(errorDictionary.user.notFound)
 
+    if (userDetails.userType !== 'PROXY')
+      throw new AppException(errorDictionary.user.userNotProxy)
+
     const email = userDetails.email
-    const phoneNumber = userDetails.phoneNumber ?? ''
-    const [firstName, lastName] = userDetails.name.split(' ')
+    const phoneNumber = userDetails.phoneNumber || undefined
+    const [firstName, ...rest] = userDetails.name.trim().split(/\s+/)
+    const lastName = rest.join(' ') || undefined
 
     let stripeAccountId: string | null = null
     if (!userDetails?.stripeAccountId) {
@@ -64,23 +68,20 @@ export class CreateMerchantAccountService {
       await this.authRepository.updateStripeAccountId(userId, stripeAccountId)
     } else stripeAccountId = userDetails.stripeAccountId
 
-    let callbackUrl: string | null = null
-
-    const nodeEnv = this.envService.get('NODE_ENV')
-    if (nodeEnv === 'development') {
-      callbackUrl = this.envService.get('DEV_CALLBACK_URL')
-    } else callbackUrl = this.envService.get('PROD_CALLBACK_URL')
+    const returnUrl = this.envService.get('STRIPE_CONNECT_RETURN_URL')
+    const refreshUrl = `${returnUrl}${returnUrl.includes('?') ? '&' : '?'}refresh=1`
 
     try {
       const link = await this.stripeService.linkMerchantAccount({
         account: stripeAccountId,
-        url: callbackUrl,
+        returnUrl,
+        refreshUrl,
       })
 
       return { accountLinkUrl: link.url }
     } catch (error) {
       this.logger.error(
-        `Stripe linkMerchantAccount failed for user ${userId} (account ${stripeAccountId}, callback ${callbackUrl ?? 'null'})`,
+        `Stripe linkMerchantAccount failed for user ${userId} (account ${stripeAccountId}, return ${returnUrl})`,
         error instanceof Error ? error.stack : String(error),
       )
       throw new AppException(errorDictionary.user.merchantAccountCreationFailed)

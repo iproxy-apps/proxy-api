@@ -211,15 +211,15 @@ See `.env.example`. Required:
 - `DATABASE_URL`
 - `JWT_PRIVATE_KEY`, `JWT_PUBLIC_KEY` (RS256, base64-encoded)
 - `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`
-- `DEV_CALLBACK_URL`, `PROD_CALLBACK_URL` (for Stripe Connect onboarding redirects)
+- `NODE_ENV` (`development`/`production`/`test`, no default; the deploy must set `production`)
+- `STRIPE_CONNECT_RETURN_URL` (Stripe Connect onboarding return URL; `?refresh=1` is appended for the refresh URL; https in production)
 - `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SES_FROM_EMAIL`
 
 Optional:
 - `STRIPE_CONNECT_WEBHOOK_SECRET` (secret of the connected-account webhook endpoint)
-- `STRIPE_PUBLIC_KEY` (unused by the API)
 - `S3_BUCKET` (enables S3/R2 proof storage), `S3_ENDPOINT`, `S3_REGION`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY` (the two keys are required once `S3_BUCKET` is set)
 - `PROOF_DIR` (local proof storage directory when `S3_BUCKET` is unset; default `./tmp/proofs`)
-- `NODE_ENV` (default `development`), `PORT` (default 3333), `TRUST_PROXY` (default 0), `LOOP_TEST_HOOKS` (`0`/`1`, default `0`), `AWS_REGION` (default `us-east-1`)
+- `PORT` (default 3333), `TRUST_PROXY` (default 0), `LOOP_TEST_HOOKS` (`0`/`1`, default `0`), `AWS_REGION` (default `us-east-1`)
 
 ### Local Stripe webhook setup
 

@@ -7,6 +7,8 @@ describe('StripeService', () => {
   const refundsCreate = jest.fn()
   const transfersCreate = jest.fn()
   const transfersList = jest.fn()
+  const accountsCreate = jest.fn()
+  const accountLinksCreate = jest.fn()
 
   const stubSdk = (svc: StripeService) => {
     ;(svc as any).stripe = {
@@ -15,6 +17,8 @@ describe('StripeService', () => {
       setupIntents: { create: setupIntentsCreate },
       refunds: { create: refundsCreate },
       transfers: { create: transfersCreate, list: transfersList },
+      accounts: { create: accountsCreate },
+      accountLinks: { create: accountLinksCreate },
     }
     return svc
   }
@@ -144,6 +148,43 @@ describe('StripeService', () => {
     expect(refundsCreate).toHaveBeenCalledWith(
       { payment_intent: 'pi_1' },
       { idempotencyKey: 'task:t1:refund' },
+    )
+  })
+
+  it('creates a BR merchant account requesting transfers and omits an absent phone', async () => {
+    await service.createMerchantAccount({
+      email: 'a@b.io',
+      firstName: 'Ana',
+      lastName: 'Maria da Silva',
+    })
+    expect(accountsCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        country: 'BR',
+        default_currency: 'brl',
+        capabilities: { transfers: { requested: true } },
+      }),
+    )
+    const arg = accountsCreate.mock.calls[0][0]
+    expect(arg.individual).toEqual({
+      first_name: 'Ana',
+      last_name: 'Maria da Silva',
+    })
+    expect('phone' in arg.individual).toBe(false)
+  })
+
+  it('links the merchant account with distinct return and refresh URLs', async () => {
+    await service.linkMerchantAccount({
+      account: 'acct_1',
+      returnUrl: 'https://x.test/r',
+      refreshUrl: 'https://x.test/r?refresh=1',
+    })
+    expect(accountLinksCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        account: 'acct_1',
+        return_url: 'https://x.test/r',
+        refresh_url: 'https://x.test/r?refresh=1',
+        type: 'account_onboarding',
+      }),
     )
   })
 })

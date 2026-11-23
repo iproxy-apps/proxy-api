@@ -80,4 +80,53 @@ describe('POST /auth/merchant-account (e2e)', () => {
     })
     expect(updatedUser?.stripeAccountId).toBe('acct_existing')
   })
+  it('returns 403 for a CLIENT', async () => {
+    const user = await createUser(ctx.app, ctx.prisma, {
+      userType: 'CLIENT',
+      stripeAccountId: null,
+    })
+
+    const response = await request(ctx.app.getHttpServer())
+      .post('/auth/merchant-account')
+      .set('Authorization', `Bearer ${user.token}`)
+
+    expect(response.status).toBe(403)
+    expect(response.body).toMatchObject({ errorCode: 'USER_NOT_PROXY' })
+    expect(ctx.stripeMock.createMerchantAccount).not.toHaveBeenCalled()
+  })
+
+  it('passes a distinct refresh_url', async () => {
+    const user = await createUser(ctx.app, ctx.prisma, {
+      userType: 'PROXY',
+      stripeAccountId: null,
+    })
+
+    await request(ctx.app.getHttpServer())
+      .post('/auth/merchant-account')
+      .set('Authorization', `Bearer ${user.token}`)
+
+    expect(ctx.stripeMock.linkMerchantAccount).toHaveBeenCalledWith({
+      account: 'acct_test_123',
+      returnUrl: 'http://localhost:3000/callback',
+      refreshUrl: 'http://localhost:3000/callback?refresh=1',
+    })
+  })
+
+  it('sends a multi-word last name and omits the empty phone', async () => {
+    const user = await createUser(ctx.app, ctx.prisma, {
+      name: 'Ana Maria da Silva',
+      userType: 'PROXY',
+      stripeAccountId: null,
+      phoneNumber: null,
+    })
+
+    await request(ctx.app.getHttpServer())
+      .post('/auth/merchant-account')
+      .set('Authorization', `Bearer ${user.token}`)
+
+    const arg = ctx.stripeMock.createMerchantAccount.mock.calls[0][0]
+    expect(arg.firstName).toBe('Ana')
+    expect(arg.lastName).toBe('Maria da Silva')
+    expect(arg.phoneNumber).toBeUndefined()
+  })
 })

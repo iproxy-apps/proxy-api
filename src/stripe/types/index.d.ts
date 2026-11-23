@@ -1,13 +1,14 @@
 export type CreateMerchantAccountData = {
   email: string
-  lastName: string
   firstName: string
-  phoneNumber: string
+  lastName?: string
+  phoneNumber?: string
 }
 
 export type LinkMerchantAccountData = {
-  url: string
   account: string
+  returnUrl: string
+  refreshUrl: string
 }
 
 export type ChargeSavedCardData = {

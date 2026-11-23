@@ -75,6 +75,18 @@ describe('CreateMerchantAccountService', () => {
     expect(stripeService.linkMerchantAccount).not.toHaveBeenCalled()
   })
 
+  it('rejects a user that is not a PROXY', async () => {
+    fetchUserDetailsService.execute.mockResolvedValue(
+      makeMerchantUser({ userType: 'CLIENT' }),
+    )
+
+    await expect(service.execute('user-1')).rejects.toMatchObject({
+      errorCode: errorDictionary.user.userNotProxy.errorCode,
+    })
+    expect(stripeService.createMerchantAccount).not.toHaveBeenCalled()
+    expect(stripeService.linkMerchantAccount).not.toHaveBeenCalled()
+  })
+
   it('creates and persists a new merchant account when user has none', async () => {
     fetchUserDetailsService.execute.mockResolvedValue(makeMerchantUser())
     stripeService.createMerchantAccount.mockResolvedValue({
@@ -85,8 +97,7 @@ describe('CreateMerchantAccountService', () => {
     } as Awaited<ReturnType<StripeService['linkMerchantAccount']>>)
     envService.get.mockImplementation(
       makeEnvGet({
-        NODE_ENV: 'development',
-        DEV_CALLBACK_URL: 'http://dev/callback',
+        STRIPE_CONNECT_RETURN_URL: 'http://dev/callback',
       }),
     )
 
@@ -104,7 +115,8 @@ describe('CreateMerchantAccountService', () => {
     )
     expect(stripeService.linkMerchantAccount).toHaveBeenCalledWith({
       account: 'acct_new',
-      url: 'http://dev/callback',
+      returnUrl: 'http://dev/callback',
+      refreshUrl: 'http://dev/callback?refresh=1',
     })
     expect(result).toEqual({ accountLinkUrl: 'https://stripe.test/onboarding' })
   })
@@ -118,8 +130,7 @@ describe('CreateMerchantAccountService', () => {
     } as Awaited<ReturnType<StripeService['linkMerchantAccount']>>)
     envService.get.mockImplementation(
       makeEnvGet({
-        NODE_ENV: 'production',
-        PROD_CALLBACK_URL: 'http://prod/callback',
+        STRIPE_CONNECT_RETURN_URL: 'http://prod/callback',
       }),
     )
 
@@ -129,7 +140,8 @@ describe('CreateMerchantAccountService', () => {
     expect(authRepository.updateStripeAccountId).not.toHaveBeenCalled()
     expect(stripeService.linkMerchantAccount).toHaveBeenCalledWith({
       account: 'acct_existing',
-      url: 'http://prod/callback',
+      returnUrl: 'http://prod/callback',
+      refreshUrl: 'http://prod/callback?refresh=1',
     })
     expect(result).toEqual({ accountLinkUrl: 'https://stripe.test/onboarding' })
   })
@@ -171,8 +183,7 @@ describe('CreateMerchantAccountService', () => {
     )
     envService.get.mockImplementation(
       makeEnvGet({
-        NODE_ENV: 'production',
-        PROD_CALLBACK_URL: 'http://prod/callback',
+        STRIPE_CONNECT_RETURN_URL: 'http://prod/callback',
       }),
     )
 
