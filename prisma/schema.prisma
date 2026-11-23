@@ -64,6 +64,7 @@ model Users {
   ratingsGiven       Ratings[]            @relation("RatingsGiven")
   ratingsReceived    Ratings[]            @relation("RatingsReceived")
 
+  @@index([stripeAccountId])
   @@map("users")
 }
 
@@ -99,13 +100,15 @@ model Tasks {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  ownerId Users @relation("UserTasks", fields: [owner], references: [id], onDelete: Cascade)
+  ownerId Users @relation("UserTasks", fields: [owner], references: [id], onDelete: Restrict)
 
   userTaskMappings UserTaskMapping[]
   payments         Payments[]
   rating           Ratings?
 
   @@index([city, status, createdAt])
+  @@index([status, createdAt])
+  @@index([owner])
   @@map("tasks")
 }
 
@@ -124,6 +127,7 @@ model Cards {
 
   user Users @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@index([userId])
   @@map("cards")
 }
 
@@ -137,6 +141,7 @@ model UserTaskMapping {
   user Users @relation(fields: [executorId], references: [id], onDelete: Cascade)
   task Tasks @relation(fields: [taskId], references: [id], onDelete: Cascade)
 
+  @@index([executorId])
   @@map("user_task_mapping")
 }
 
@@ -154,7 +159,7 @@ model Payments {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  task Tasks @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  task Tasks @relation(fields: [taskId], references: [id], onDelete: Restrict)
 
   @@unique([paymentIntent])
   @@index([taskId])
@@ -177,6 +182,7 @@ model Ratings {
   rater Users @relation("RatingsGiven", fields: [raterId], references: [id], onDelete: Cascade)
   rated Users @relation("RatingsReceived", fields: [ratedId], references: [id], onDelete: Cascade)
 
+  @@index([ratedId])
   @@map("ratings")
 }
 
@@ -206,6 +212,7 @@ model PasswordResetCodes {
 
   user Users @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@index([userId, createdAt])
   @@map("password_reset_codes")
 }
 
