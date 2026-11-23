@@ -3,6 +3,7 @@ import { INestApplication } from '@nestjs/common'
 
 import { AppModule } from 'src/app.module'
 import { PrismaService } from 'src/prisma/prisma.service'
+import { assertTestDatabaseUrl } from './assert-test-database-url'
 import { TRUNCATE_TABLES } from 'src/modules/test-hooks/truncate-tables'
 import { StripeService } from 'src/stripe/stripe.service'
 import { HttpExceptionFilter } from 'src/exception/http.exception'
@@ -41,6 +42,7 @@ export const createTestApp = async (): Promise<TestAppContext> => {
 }
 
 export const resetDatabase = async (prisma: PrismaService): Promise<void> => {
+  assertTestDatabaseUrl(process.env.DATABASE_URL)
   const tables = TRUNCATE_TABLES.map((t) => `"${t}"`).join(', ')
   await prisma.$executeRawUnsafe(
     `TRUNCATE TABLE ${tables} RESTART IDENTITY CASCADE`,

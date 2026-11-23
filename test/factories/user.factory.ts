@@ -74,6 +74,7 @@ export const createUser = async (
     termsAccepted: user.termsAccepted,
     phoneNumber: user.phoneNumber ?? '',
     stripeAccountId: user.stripeAccountId,
+    stripeAccountReady: user.stripeAccountReady,
     stripeCustomerId: user.stripeCustomerId,
     walletBalance: Number(user.walletBalance),
     totalTasksCreated: user.totalTasksCreated,
