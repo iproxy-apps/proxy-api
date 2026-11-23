@@ -48,14 +48,15 @@ model Users {
   documentType        DocumentType?
   documentUrl         String?
   isVerified          Boolean       @default(false)
-  rating              Decimal       @default(0)
+  rating              Decimal       @default(0) @db.Decimal(3, 2)
   totalTasksCompleted Int           @default(0)
   totalTasksCreated   Int           @default(0)
-  walletBalance       Decimal       @default(0)
+  walletBalance       Decimal       @default(0) @db.Decimal(12, 2)
   termsAccepted       Boolean       @default(false)
   stripeCustomerId    String?
   stripeAccountId     String?
   stripeAccountReady  Boolean       @default(false)
+  payoutIssue         Boolean       @default(false)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now()) @updatedAt
@@ -79,13 +80,15 @@ model Tasks {
 
   title           String
   description     String
-  locationLat     Decimal
-  locationLng     Decimal
+  locationLat     Decimal @db.Decimal(9, 6)
+  locationLng     Decimal @db.Decimal(9, 6)
   locationAddress String
 
   offeredPrice  Decimal  @db.Decimal(10, 2)
   proxyEarnings Decimal? @db.Decimal(10, 2)
   platformFee   Decimal? @db.Decimal(10, 2)
+  stripeFee     Decimal? @db.Decimal(10, 2)
+  chargedAmount Decimal? @db.Decimal(10, 2)
 
   transferId String? @unique
 
@@ -148,12 +151,16 @@ model Payments {
   amount        Decimal       @db.Decimal(10, 2)
   status        PaymentStatus @default(pending)
   refundId      String?
+  chargeId      String?
+  disputeId     String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   task Tasks @relation(fields: [taskId], references: [id], onDelete: Cascade)
 
+  @@unique([paymentIntent])
+  @@index([taskId])
   @@map("payments")
 }
 
