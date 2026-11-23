@@ -78,7 +78,11 @@ describe('UpdateProfileService', () => {
         email: updated.email,
         userType: updated.userType,
         phoneNumber: updated.phoneNumber,
+        rating: 0,
       }),
+    )
+    expect(jwtService.sign).toHaveBeenCalledWith(
+      expect.not.objectContaining({ documentType: expect.anything() }),
     )
     expect(result).toEqual({ session: 'signed-token' })
   })

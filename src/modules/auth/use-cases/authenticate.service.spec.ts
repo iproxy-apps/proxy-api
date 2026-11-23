@@ -19,6 +19,8 @@ const makeUser = async (
   avatarUrl: null,
   isVerified: true,
   isDeleted: false,
+  payoutIssue: false,
+  cardActionRequired: false,
   documentUrl: null,
   userType: 'CLIENT',
   documentType: null,
@@ -94,12 +96,18 @@ describe('AuthenticateService', () => {
         name: user.name,
         email: user.email,
         userType: user.userType,
-        isVerified: user.isVerified,
+        rating: 0,
+        walletBalance: 0,
+        payoutIssue: false,
+        cardActionRequired: false,
         termsAccepted: user.termsAccepted,
         stripeAccountId: user.stripeAccountId,
         stripeCustomerId: user.stripeCustomerId,
         stripeAccountReady: user.stripeAccountReady,
       }),
+    )
+    expect(jwtService.sign).toHaveBeenCalledWith(
+      expect.not.objectContaining({ documentType: expect.anything() }),
     )
   })
 })

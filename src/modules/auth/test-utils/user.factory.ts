@@ -9,6 +9,8 @@ export const makeUser = (
   name: 'User',
   avatarUrl: null,
   isDeleted: false,
+  payoutIssue: false,
+  cardActionRequired: false,
   isVerified: true,
   phoneNumber: null,
   documentUrl: null,

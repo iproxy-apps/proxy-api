@@ -1,4 +1,5 @@
 import request from 'supertest'
+import { JwtService } from '@nestjs/jwt'
 
 import { createUser } from '../factories/user.factory'
 import { createTestApp, resetDatabase } from '../setup/test-app.factory'
@@ -81,5 +82,30 @@ describe('POST /auth/session (e2e)', () => {
 
     expect(response.status).toBe(200)
     expect(typeof response.body.session).toBe('string')
+  })
+
+  it('signs rating and walletBalance as numbers', async () => {
+    const user = await createUser(ctx.app, ctx.prisma, {
+      email: 'num@test.io',
+      password: 'password123',
+    })
+    await ctx.prisma.users.update({
+      where: { id: user.id },
+      data: { rating: 4.5, walletBalance: 123.45 },
+    })
+
+    const response = await request(ctx.app.getHttpServer())
+      .post('/auth/session')
+      .send({ email: 'num@test.io', password: 'password123' })
+    const decoded = ctx.app.get(JwtService).decode(response.body.session) as {
+      rating: unknown
+      walletBalance: unknown
+    }
+
+    expect(response.status).toBe(200)
+    expect(typeof decoded.rating).toBe('number')
+    expect(typeof decoded.walletBalance).toBe('number')
+    expect(decoded.rating).toBe(4.5)
+    expect(decoded.walletBalance).toBe(123.45)
   })
 })

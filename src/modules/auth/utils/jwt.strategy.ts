@@ -1,4 +1,3 @@
-import { z } from 'zod'
 import { Injectable, UnauthorizedException } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import { PassportStrategy } from '@nestjs/passport'
@@ -6,30 +5,11 @@ import { ExtractJwt, Strategy } from 'passport-jwt'
 
 import { Env } from 'src/env/env'
 import { PrismaService } from 'src/prisma/prisma.service'
+import { sessionPayloadSchema } from './session-payload'
 
-const sessionPayloadSchema = z.object({
-  sub: z.string(),
-  email: z.string(),
-  name: z.string(),
-  avatarUrl: z.string().nullable(),
-  phoneNumber: z.string(),
-  stripeAccountId: z.string().nullable(),
-  stripeCustomerId: z.string().nullable(),
-  userType: z.string(),
-  documentType: z.string().nullable(),
-  documentUrl: z.string().nullable(),
-  isVerified: z.boolean(),
-  rating: z.coerce.number(),
-  totalTasksCompleted: z.coerce.number(),
-  totalTasksCreated: z.coerce.number(),
-  walletBalance: z.coerce.number(),
-  // Defaulted so JWTs issued before this field was added still validate — old
-  // tokens are treated as "not yet configured", which matches the safe path.
-  stripeAccountReady: z.boolean().default(false),
-  termsAccepted: z.boolean(),
-})
+import type { SessionPayload } from './session-payload'
 
-export type SessionPayload = z.infer<typeof sessionPayloadSchema>
+export type { SessionPayload }
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
@@ -46,8 +26,10 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     })
   }
 
-  async validate(payload: SessionPayload) {
-    const session = sessionPayloadSchema.parse(payload)
+  async validate(payload: unknown): Promise<SessionPayload> {
+    const parsed = sessionPayloadSchema.safeParse(payload)
+    if (!parsed.success) throw new UnauthorizedException()
+    const session = parsed.data
 
     const user = await this.prisma.users.findUnique({
       where: { id: session.sub },

@@ -53,7 +53,11 @@ describe('RefreshSessionService', () => {
         userType: user.userType,
         stripeAccountId: user.stripeAccountId,
         stripeAccountReady: true,
+        rating: 0,
       }),
+    )
+    expect(jwtService.sign).toHaveBeenCalledWith(
+      expect.not.objectContaining({ documentType: expect.anything() }),
     )
   })
 })

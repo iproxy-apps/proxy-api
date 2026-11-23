@@ -35,6 +35,8 @@ export type FindUserByEmailResult = {
   stripeAccountId: string | null
   stripeAccountReady: boolean
   isDeleted: boolean
+  payoutIssue: boolean
+  cardActionRequired: boolean
 }
 
 export type UsersUpdateInput = {

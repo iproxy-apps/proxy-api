@@ -4,6 +4,7 @@ import { Injectable } from '@nestjs/common'
 
 import { AppException } from 'src/exception/app.exception'
 import { AuthRepository } from '../repository/auth.repository'
+import { buildSessionPayload } from '../utils/session-payload'
 import { errorDictionary } from 'src/exception/error-dictionary'
 
 import type {
@@ -47,25 +48,7 @@ export class UpdateProfileService {
 
     if (!updatedUser) throw new AppException(errorDictionary.user.notFound)
 
-    const session = this.jwt.sign({
-      sub: updatedUser.id,
-      name: updatedUser.name,
-      email: updatedUser.email,
-      rating: updatedUser.rating,
-      userType: updatedUser.userType,
-      avatarUrl: updatedUser.avatarUrl,
-      isVerified: updatedUser.isVerified,
-      phoneNumber: updatedUser.phoneNumber,
-      documentUrl: updatedUser.documentUrl,
-      documentType: updatedUser.documentType,
-      termsAccepted: updatedUser.termsAccepted,
-      walletBalance: updatedUser.walletBalance,
-      stripeAccountId: updatedUser.stripeAccountId,
-      stripeAccountReady: updatedUser.stripeAccountReady,
-      stripeCustomerId: updatedUser.stripeCustomerId,
-      totalTasksCreated: updatedUser.totalTasksCreated,
-      totalTasksCompleted: updatedUser.totalTasksCompleted,
-    })
+    const session = this.jwt.sign(buildSessionPayload(updatedUser))
 
     return { session }
   }
