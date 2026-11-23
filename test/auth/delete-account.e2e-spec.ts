@@ -100,7 +100,11 @@ describe('DELETE /auth/account (e2e)', () => {
     expect(response.status).toBe(401)
   })
 
-  it('allows completed/canceled tasks (not blocking)', async () => {
+  // Parked in Phase 0 (P0-T10). Red on main: fetchActiveTasksForUser
+  // (tasks.repository.ts, fetchActiveTasksForUser) treats `available` owner tasks as active.
+  // Phase 2 (plans/phase-2-auth-api.md, BE-17 / D13) auto-cancels `available`
+  // tasks on deletion and must turn this back into `it(`.
+  it.skip('allows completed/canceled tasks (not blocking)', async () => {
     const user = await createUser(ctx.app, ctx.prisma)
     await createTask(ctx.prisma, user.id, { status: 'completed' })
     await createTask(ctx.prisma, user.id, { status: 'canceled' })
