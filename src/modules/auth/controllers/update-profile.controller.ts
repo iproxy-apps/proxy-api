@@ -6,7 +6,7 @@ import { JwtAuthGuard } from '../utils/jwt-auth.guard'
 import { ZodValidationPipe } from 'src/pipes/zod-validation.pipe'
 import { UpdateProfileService } from '../use-cases/update-profile.service'
 
-import type { SessionPayload } from '../utils/jwt.strategy'
+import type { SessionClaims } from '../utils/jwt.strategy'
 
 const updateProfileBodySchema = z
   .object({
@@ -30,11 +30,12 @@ export class UpdateProfileController {
   async handle(
     @Body(new ZodValidationPipe(updateProfileBodySchema))
     body: UpdateProfileBodySchema,
-    @User() user: SessionPayload,
+    @User() user: SessionClaims,
   ) {
     return await this.updateProfileService.execute({
       ...body,
       userId: user.sub,
+      exp: user.exp,
     })
   }
 }

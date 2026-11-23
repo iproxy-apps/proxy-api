@@ -50,6 +50,12 @@ export class StartTaskService {
       }
     }
 
+    // owner deleted the account: nothing may be claimed or charged
+    const taskOwner = await this.authRepository.fetchUserDetailsById(task.owner)
+    if (!taskOwner || taskOwner.isDeleted) {
+      throw new AppException(errorDictionary.tasks.taskNotAvailable)
+    }
+
     // 2. owner cannot start their own task
     if (task.owner === userId) {
       throw new AppException(errorDictionary.tasks.cannotStartOwnTask)

@@ -137,6 +137,20 @@ describe('StartTaskService', () => {
     await expect(promise).rejects.toMatchObject({ errorCode: code })
   }
 
+  it('refuses a task whose owner deleted the account: no claim, no charge', async () => {
+    happyPath()
+    authRepository.fetchUserDetailsById.mockResolvedValue(
+      makeUser({ isDeleted: true }),
+    )
+
+    await expectCode(
+      service.execute(args),
+      errorDictionary.tasks.taskNotAvailable.errorCode,
+    )
+    expect(tasksRepository.claimTask).not.toHaveBeenCalled()
+    expect(stripeService.chargeSavedCard).not.toHaveBeenCalled()
+  })
+
   it('throws taskNotFound when the task does not exist', async () => {
     tasksRepository.fetchTaskById.mockResolvedValue(null)
 

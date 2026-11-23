@@ -38,6 +38,7 @@ export type FindUserByEmailResult = {
 
 export type UpdateProfileInput = {
   userId: string
+  exp: number
   name?: string
   phoneNumber?: string | null
 }

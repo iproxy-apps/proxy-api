@@ -30,7 +30,7 @@ export class ForgotPasswordService {
 
     const user = await this.authRepository.findByEmail(email)
 
-    if (!user) {
+    if (!user || user.isDeleted) {
       return GENERIC_RESPONSE
     }
 

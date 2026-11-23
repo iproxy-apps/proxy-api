@@ -1,4 +1,5 @@
 import request from 'supertest'
+import { hash } from 'bcryptjs'
 import { JwtService } from '@nestjs/jwt'
 
 import { createUser } from '../factories/user.factory'
@@ -88,5 +89,49 @@ describe('GET /auth/session/refresh (e2e)', () => {
 
     expect(response.status).toBe(200)
     expect(Object.keys(response.body)).toEqual(['session'])
+  })
+
+  it('does not extend exp', async () => {
+    const user = await createUser(ctx.app, ctx.prisma)
+    const before = decode(user.token).exp as number
+
+    const response = await refresh(user.token)
+    const after = decode(response.body.session).exp as number
+
+    expect(response.status).toBe(200)
+    expect(after).toBeLessThanOrEqual(before)
+    expect(before - after).toBeLessThanOrEqual(5)
+  })
+
+  it('a token issued before a password reset still expires at its original exp and cannot be renewed past it', async () => {
+    const user = await createUser(ctx.app, ctx.prisma, { email: 'u@test.io' })
+    const login = await request(ctx.app.getHttpServer())
+      .post('/auth/session')
+      .send({ email: user.email, password: 'password123' })
+    const old = login.body.session as string
+    const oldExp = decode(old).exp as number
+    await ctx.prisma.passwordResetCodes.create({
+      data: {
+        userId: user.id,
+        code: await hash('654321', 8),
+        expiresAt: new Date(Date.now() + 15 * 60 * 1000),
+        state: 'verified',
+      },
+    })
+    const reset = await request(ctx.app.getHttpServer())
+      .post('/auth/reset-password')
+      .send({ email: user.email, code: '654321', newPassword: 'new-password' })
+    expect(reset.status).toBe(200)
+
+    const response = await refresh(old)
+
+    expect(response.status).toBe(200)
+    expect(decode(response.body.session).exp as number).toBeLessThanOrEqual(
+      oldExp,
+    )
+    const second = await refresh(response.body.session)
+    expect(decode(second.body.session).exp as number).toBeLessThanOrEqual(
+      oldExp,
+    )
   })
 })

@@ -10,6 +10,9 @@ type AuthRepositoryMock = jest.Mocked<
 >
 type JwtServiceMock = jest.Mocked<Pick<JwtService, 'sign'>>
 
+const nowSec = () => Math.floor(Date.now() / 1000)
+const FUTURE_EXP = nowSec() + 600
+
 describe('RefreshSessionService', () => {
   let jwtService: JwtServiceMock
   let service: RefreshSessionService
@@ -28,7 +31,9 @@ describe('RefreshSessionService', () => {
   it('throws notFound when the user no longer exists', async () => {
     authRepository.fetchUserDetailsById.mockResolvedValue(null)
 
-    await expect(service.execute('missing-user')).rejects.toMatchObject({
+    await expect(
+      service.execute('missing-user', FUTURE_EXP),
+    ).rejects.toMatchObject({
       errorCode: errorDictionary.user.notFound.errorCode,
     })
 
@@ -43,7 +48,7 @@ describe('RefreshSessionService', () => {
     jwtService.sign.mockReturnValue('signed-token')
     authRepository.fetchUserDetailsById.mockResolvedValue(user)
 
-    const result = await service.execute(user.id)
+    const result = await service.execute(user.id, FUTURE_EXP)
 
     expect(result).toEqual({ session: 'signed-token' })
     expect(jwtService.sign).toHaveBeenCalledWith(
@@ -55,9 +60,31 @@ describe('RefreshSessionService', () => {
         stripeAccountReady: true,
         rating: 0,
       }),
+      { expiresIn: expect.any(Number) },
     )
     expect(jwtService.sign).toHaveBeenCalledWith(
       expect.not.objectContaining({ documentType: expect.anything() }),
+      expect.anything(),
     )
+  })
+
+  it('keeps the incoming exp: signs with the remaining lifetime, never the default', async () => {
+    authRepository.fetchUserDetailsById.mockResolvedValue(makeUser())
+    jwtService.sign.mockReturnValue('signed-token')
+
+    await service.execute('user-1', nowSec() + 120)
+
+    const options = jwtService.sign.mock.calls[0][1] as { expiresIn: number }
+    expect(options.expiresIn).toBeGreaterThan(110)
+    expect(options.expiresIn).toBeLessThanOrEqual(120)
+  })
+
+  it('clamps an already-expired exp to 1 second', async () => {
+    authRepository.fetchUserDetailsById.mockResolvedValue(makeUser())
+    jwtService.sign.mockReturnValue('signed-token')
+
+    await service.execute('user-1', nowSec() - 50)
+
+    expect(jwtService.sign.mock.calls[0][1]).toEqual({ expiresIn: 1 })
   })
 })

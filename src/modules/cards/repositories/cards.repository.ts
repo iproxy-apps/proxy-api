@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common'
 
 import { PrismaService } from 'src/prisma/prisma.service'
+import { lockLiveOwner } from 'src/common/owner-lock'
 
 import type {
   UserCard,
@@ -43,6 +44,8 @@ export class CardsRepository implements CardsRepositoryDTO {
     const { userId, stripeCardId, brand, last4 } = data
 
     return await this.prisma.$transaction(async (tx) => {
+      await lockLiveOwner(tx, userId)
+
       const previous = await tx.cards.findFirst({
         where: { userId, isDeleted: false },
       })

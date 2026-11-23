@@ -28,7 +28,7 @@ export class IssueSessionService {
     const session = this.jwt.sign(buildSessionPayload(user))
     const { token, tokenHash } = generateRefreshToken()
 
-    await this.refreshTokensRepository.create({
+    await this.refreshTokensRepository.createForUser(user.id, user.password, {
       userId: user.id,
       familyId,
       tokenHash,

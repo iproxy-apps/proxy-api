@@ -11,6 +11,9 @@ type AuthRepositoryMock = jest.Mocked<
 
 type JwtServiceMock = jest.Mocked<Pick<JwtService, 'sign'>>
 
+const nowSec = () => Math.floor(Date.now() / 1000)
+const FUTURE_EXP = nowSec() + 600
+
 describe('UpdateProfileService', () => {
   let jwtService: JwtServiceMock
   let service: UpdateProfileService
@@ -33,7 +36,11 @@ describe('UpdateProfileService', () => {
     authRepository.fetchUserDetailsById.mockResolvedValue(null)
 
     await expect(
-      service.execute({ userId: 'missing-user', name: 'New Name' }),
+      service.execute({
+        userId: 'missing-user',
+        exp: FUTURE_EXP,
+        name: 'New Name',
+      }),
     ).rejects.toMatchObject({
       errorCode: errorDictionary.user.notFound.errorCode,
     })
@@ -55,6 +62,7 @@ describe('UpdateProfileService', () => {
 
     const result = await service.execute({
       userId: 'user-1',
+      exp: FUTURE_EXP,
       name: 'New Name',
       phoneNumber: '+5511000000000',
     })
@@ -69,6 +77,7 @@ describe('UpdateProfileService', () => {
         name: updated.name,
         phoneNumber: updated.phoneNumber,
       }),
+      { expiresIn: expect.any(Number) },
     )
     expect(result).toEqual({ session: 'signed-token' })
   })
@@ -77,7 +86,11 @@ describe('UpdateProfileService', () => {
     authRepository.fetchUserDetailsById.mockResolvedValue(makeUser())
     jwtService.sign.mockReturnValue('signed-token')
 
-    await service.execute({ userId: 'user-1', name: 'Changed' })
+    await service.execute({
+      userId: 'user-1',
+      exp: FUTURE_EXP,
+      name: 'Changed',
+    })
 
     expect(authRepository.updateUserDetailsById).toHaveBeenCalledWith(
       'user-1',
@@ -89,7 +102,11 @@ describe('UpdateProfileService', () => {
     authRepository.fetchUserDetailsById.mockResolvedValue(makeUser())
     jwtService.sign.mockReturnValue('signed-token')
 
-    await service.execute({ userId: 'user-1', phoneNumber: null })
+    await service.execute({
+      userId: 'user-1',
+      exp: FUTURE_EXP,
+      phoneNumber: null,
+    })
 
     expect(authRepository.updateUserDetailsById).toHaveBeenCalledWith(
       'user-1',
@@ -103,11 +120,22 @@ describe('UpdateProfileService', () => {
       .mockResolvedValueOnce(null)
 
     await expect(
-      service.execute({ userId: 'user-1', name: 'New Name' }),
+      service.execute({ userId: 'user-1', exp: FUTURE_EXP, name: 'New Name' }),
     ).rejects.toMatchObject({
       errorCode: errorDictionary.user.notFound.errorCode,
     })
 
     expect(jwtService.sign).not.toHaveBeenCalled()
+  })
+
+  it('signs with the remaining lifetime of the incoming token', async () => {
+    authRepository.fetchUserDetailsById.mockResolvedValue(makeUser())
+    jwtService.sign.mockReturnValue('signed-token')
+
+    await service.execute({ userId: 'user-1', exp: nowSec() + 120, name: 'N' })
+
+    const options = jwtService.sign.mock.calls[0][1] as { expiresIn: number }
+    expect(options.expiresIn).toBeGreaterThan(110)
+    expect(options.expiresIn).toBeLessThanOrEqual(120)
   })
 })

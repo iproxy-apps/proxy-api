@@ -1,5 +1,6 @@
 import { Prisma } from '@prisma/client'
 
+import { OwnerUnavailableError } from 'src/common/owner-lock'
 import { StripeService } from 'src/stripe/stripe.service'
 import { errorDictionary } from 'src/exception/error-dictionary'
 import { SaveCardService } from './save-card.service'
@@ -192,5 +193,18 @@ describe('SaveCardService', () => {
     })
 
     expect(stripeService.detachPaymentMethod).not.toHaveBeenCalled()
+  })
+
+  it('maps a deleted owner (raised by the repository) to user.notFound', async () => {
+    stripeService.retrievePaymentMethod.mockResolvedValue(makePaymentMethod())
+    cardsRepository.replaceUserCard.mockRejectedValue(
+      new OwnerUnavailableError(),
+    )
+
+    await expect(
+      service.execute({ userId: 'user-1', paymentMethodId: 'pm_new' }),
+    ).rejects.toMatchObject({
+      errorCode: errorDictionary.user.notFound.errorCode,
+    })
   })
 })

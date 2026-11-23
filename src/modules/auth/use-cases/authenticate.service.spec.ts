@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client'
 
 import { AuthenticateService } from './authenticate.service'
 import { AuthRepository } from '../repository/auth.repository'
+import { SessionNotIssuableError } from '../repository/refresh-tokens.repository'
 import { IssueSessionService } from './issue-session.service'
 import { DUMMY_PASSWORD_HASH } from '../utils/password'
 import { errorDictionary } from 'src/exception/error-dictionary'
@@ -118,5 +119,20 @@ describe('AuthenticateService', () => {
       refreshToken: 'refresh-token',
     })
     expect(issueSession.issue).toHaveBeenCalledWith(user)
+  })
+
+  it('answers 401 when the session can no longer be issued (password changed mid-login)', async () => {
+    const user = await makeUser()
+    authRepository.findByEmail.mockResolvedValue(user)
+    issueSession.issue.mockRejectedValue(new SessionNotIssuableError())
+
+    await expect(
+      service.execute({
+        email: 'user@test.io',
+        password: 'correct-password',
+      }),
+    ).rejects.toMatchObject({
+      errorCode: errorDictionary.user.invalidCredentials.errorCode,
+    })
   })
 })

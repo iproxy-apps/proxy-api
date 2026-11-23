@@ -43,3 +43,8 @@ export const buildSessionPayload = (
   payoutIssue: user.payoutIssue,
   cardActionRequired: user.cardActionRequired,
 })
+
+// Remaining lifetime (seconds) of the incoming access token: a re-signed
+// token must never outlive the one it replaces.
+export const remainingLifetime = (exp: number): number =>
+  Math.max(1, exp - Math.floor(Date.now() / 1000))

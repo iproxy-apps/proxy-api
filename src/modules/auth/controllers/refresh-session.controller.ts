@@ -4,7 +4,7 @@ import { User } from '../utils/current-user-decorator'
 import { JwtAuthGuard } from '../utils/jwt-auth.guard'
 import { RefreshSessionService } from '../use-cases/refresh-session.service'
 
-import type { SessionPayload } from '../utils/jwt.strategy'
+import type { SessionClaims } from '../utils/jwt.strategy'
 
 @Controller('/auth/session/refresh')
 @UseGuards(JwtAuthGuard)
@@ -13,7 +13,7 @@ export class RefreshSessionController {
 
   @Get()
   @HttpCode(200)
-  async handle(@User() user: SessionPayload) {
-    return await this.refreshSessionService.execute(user.sub)
+  async handle(@User() user: SessionClaims) {
+    return await this.refreshSessionService.execute(user.sub, user.exp)
   }
 }

@@ -239,4 +239,33 @@ describe('POST /auth/reset-password (e2e)', () => {
       errorCode: 'PASSWORD_RESET_INVALID_CODE',
     })
   })
+
+  it('a login racing a password reset never leaves a live refresh token issued on the old password', async () => {
+    const user = await createUser(ctx.app, ctx.prisma, { email: 'u@test.io' })
+    await insertCode(user.id, '654321')
+
+    const [login] = await Promise.all([
+      request(ctx.app.getHttpServer())
+        .post('/auth/session')
+        .send({ email: user.email, password: 'password123' }),
+      request(ctx.app.getHttpServer()).post('/auth/reset-password').send({
+        email: user.email,
+        code: '654321',
+        newPassword: 'my-new-password',
+      }),
+    ])
+
+    expect([200, 401]).toContain(login.status)
+    expect(
+      await ctx.prisma.refreshTokens.count({
+        where: { userId: user.id, revokedAt: null },
+      }),
+    ).toBe(0)
+    if (login.status === 200) {
+      const response = await request(ctx.app.getHttpServer())
+        .post('/auth/refresh')
+        .send({ refreshToken: login.body.refreshToken })
+      expect(response.status).toBe(401)
+    }
+  })
 })

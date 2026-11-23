@@ -91,7 +91,7 @@ describe('GET /tasks/:id (e2e)', () => {
   })
 
   it('does not collide with GET /tasks/fetch', async () => {
-    const user = await createUser(ctx.app, ctx.prisma)
+    const user = await createUser(ctx.app, ctx.prisma, { userType: 'PROXY' })
 
     const response = await request(ctx.app.getHttpServer())
       .get('/tasks/fetch?city=SP')

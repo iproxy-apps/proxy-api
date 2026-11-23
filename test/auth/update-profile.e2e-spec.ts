@@ -137,4 +137,17 @@ describe('POST /auth/update-profile (e2e)', () => {
       .send({ refreshToken: login.body.refreshToken })
     expect(refreshed.status).toBe(200)
   })
+
+  it('does not extend exp', async () => {
+    const user = await createUser(ctx.app, ctx.prisma)
+    const jwt = ctx.app.get(JwtService)
+    const before = (jwt.decode(user.token) as { exp: number }).exp
+
+    const response = await update(user.token, { name: 'Ana Maria' })
+    const after = (jwt.decode(response.body.session) as { exp: number }).exp
+
+    expect(response.status).toBe(200)
+    expect(after).toBeLessThanOrEqual(before)
+    expect(before - after).toBeLessThanOrEqual(5)
+  })
 })

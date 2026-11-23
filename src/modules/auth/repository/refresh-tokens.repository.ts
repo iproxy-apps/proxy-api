@@ -11,6 +11,12 @@ import type {
 
 class LostRotationError extends Error {}
 
+export class SessionNotIssuableError extends Error {
+  constructor() {
+    super('Session can no longer be issued for this user')
+  }
+}
+
 // Serializes every refresh-token write of one user (rotation vs revocation).
 const lockUser = async (tx: Prisma.TransactionClient, userId: string) => {
   await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${userId}))`
@@ -22,6 +28,26 @@ export class RefreshTokensRepository implements RefreshTokensRepositoryDto {
 
   async create(data: NewRefreshToken): Promise<{ id: string }> {
     return this.prisma.refreshTokens.create({ data, select: { id: true } })
+  }
+
+  // Login path: the row is only inserted when the password the login verified
+  // is still the current one, under the same per-user lock reset/delete take.
+  async createForUser(
+    userId: string,
+    expectedPasswordHash: string,
+    data: NewRefreshToken,
+  ): Promise<{ id: string }> {
+    return this.prisma.$transaction(async (tx) => {
+      await lockUser(tx, userId)
+      const user = await tx.users.findUnique({
+        where: { id: userId },
+        select: { password: true, isDeleted: true },
+      })
+      if (!user || user.isDeleted || user.password !== expectedPasswordHash) {
+        throw new SessionNotIssuableError()
+      }
+      return tx.refreshTokens.create({ data, select: { id: true } })
+    })
   }
 
   async findByHash(tokenHash: string): Promise<RefreshTokenRow | null> {
@@ -75,20 +101,5 @@ export class RefreshTokensRepository implements RefreshTokensRepositoryDto {
         data: { revokedAt: new Date() },
       })
     })
-  }
-
-  async revokeAllForUser(
-    userId: string,
-    tx?: Prisma.TransactionClient,
-  ): Promise<void> {
-    const run = async (client: Prisma.TransactionClient) => {
-      await lockUser(client, userId)
-      await client.refreshTokens.updateMany({
-        where: { userId, revokedAt: null },
-        data: { revokedAt: new Date() },
-      })
-    }
-    if (tx) return run(tx)
-    await this.prisma.$transaction(run)
   }
 }

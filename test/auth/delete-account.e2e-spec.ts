@@ -240,4 +240,54 @@ describe('DELETE /auth/account (e2e)', () => {
     expect(byId.get(completed.id)?.status).toBe('completed')
     expect(byId.get(canceled.id)?.status).toBe('canceled')
   })
+
+  it('a task created concurrently with the deletion never survives as available', async () => {
+    const user = await createUser(ctx.app, ctx.prisma)
+    await ctx.prisma.cards.create({
+      data: {
+        userId: user.id,
+        stripeCardId: 'pm_owner',
+        brand: 'visa',
+        last4: '4242',
+      },
+    })
+    const body = {
+      cardDetails: { savedCard: 'pm_owner' },
+      title: 'Comprar mantimentos',
+      description: 'Ir ao mercado e trazer os itens da lista',
+      address: {
+        state: 'SP',
+        city: 'São Paulo',
+        locationLat: -23.55,
+        locationLng: -46.63,
+        street: 'Rua A, 123',
+        zipCode: '01000-000',
+      },
+      pricing: { offeredPrice: 50 },
+    }
+
+    const [created, deleted] = await Promise.all([
+      request(ctx.app.getHttpServer())
+        .post('/tasks/create')
+        .set('Authorization', `Bearer ${user.token}`)
+        .send(body),
+      request(ctx.app.getHttpServer())
+        .delete('/auth/account')
+        .set('Authorization', `Bearer ${user.token}`),
+    ])
+
+    expect([200, 201, 404, 401]).toContain(created.status)
+    expect([200, 204, 409]).toContain(deleted.status)
+    if (deleted.status === 409) return
+    expect(
+      await ctx.prisma.tasks.count({
+        where: { owner: user.id, status: 'available' },
+      }),
+    ).toBe(0)
+    if (created.status >= 400) {
+      expect(await ctx.prisma.tasks.count({ where: { owner: user.id } })).toBe(
+        0,
+      )
+    }
+  })
 })

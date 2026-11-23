@@ -1,5 +1,3 @@
-import type { Prisma } from '@prisma/client'
-
 export type RefreshTokenRow = {
   id: string
   userId: string
@@ -18,14 +16,15 @@ export type NewRefreshToken = {
 
 export interface RefreshTokensRepositoryDto {
   create: (data: NewRefreshToken) => Promise<{ id: string }>
+  createForUser: (
+    userId: string,
+    expectedPasswordHash: string,
+    data: NewRefreshToken,
+  ) => Promise<{ id: string }>
   findByHash: (tokenHash: string) => Promise<RefreshTokenRow | null>
   rotate: (
     currentId: string,
     next: NewRefreshToken,
   ) => Promise<{ id: string } | null>
   revokeFamily: (familyId: string) => Promise<void>
-  revokeAllForUser: (
-    userId: string,
-    tx?: Prisma.TransactionClient,
-  ) => Promise<void>
 }

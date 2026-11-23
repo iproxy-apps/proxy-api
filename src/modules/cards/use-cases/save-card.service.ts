@@ -1,6 +1,7 @@
 import { Prisma } from '@prisma/client'
 import { Injectable, Logger } from '@nestjs/common'
 
+import { OwnerUnavailableError } from 'src/common/owner-lock'
 import { StripeService } from 'src/stripe/stripe.service'
 import { AppException } from 'src/exception/app.exception'
 import { CardsRepository } from '../repositories/cards.repository'
@@ -57,6 +58,9 @@ export class SaveCardService {
         error.code === 'P2002'
       ) {
         throw new AppException(errorDictionary.card.alreadyExists)
+      }
+      if (error instanceof OwnerUnavailableError) {
+        throw new AppException(errorDictionary.user.notFound)
       }
       throw error
     }

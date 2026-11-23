@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common'
 
 import { PrismaService } from 'src/prisma/prisma.service'
+import { lockLiveOwner } from 'src/common/owner-lock'
 
 import type {
   ClaimTaskData,
@@ -40,8 +41,9 @@ export class TasksRepository implements TasksRepositoryDTO {
       city,
       state,
     } = data
-    const [task] = await this.prisma.$transaction([
-      this.prisma.tasks.create({
+    return await this.prisma.$transaction(async (tx) => {
+      await lockLiveOwner(tx, userId)
+      const task = await tx.tasks.create({
         data: {
           title,
           owner: userId,
@@ -58,13 +60,13 @@ export class TasksRepository implements TasksRepositoryDTO {
           state,
         },
         select: { id: true },
-      }),
-      this.prisma.users.update({
+      })
+      await tx.users.update({
         where: { id: userId },
         data: { totalTasksCreated: { increment: 1 } },
-      }),
-    ])
-    return task
+      })
+      return task
+    })
   }
 
   async fetchAllTasks({

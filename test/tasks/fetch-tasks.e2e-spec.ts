@@ -30,7 +30,7 @@ describe('GET /tasks/fetch (e2e)', () => {
   })
 
   it('requires a city query parameter', async () => {
-    const user = await createUser(ctx.app, ctx.prisma)
+    const user = await createUser(ctx.app, ctx.prisma, { userType: 'PROXY' })
 
     const response = await request(ctx.app.getHttpServer())
       .get('/tasks/fetch')
@@ -41,7 +41,7 @@ describe('GET /tasks/fetch (e2e)', () => {
   })
 
   it('returns an empty list when no tasks exist', async () => {
-    const user = await createUser(ctx.app, ctx.prisma)
+    const user = await createUser(ctx.app, ctx.prisma, { userType: 'PROXY' })
 
     const response = await request(ctx.app.getHttpServer())
       .get('/tasks/fetch?city=SP')
@@ -57,7 +57,7 @@ describe('GET /tasks/fetch (e2e)', () => {
   })
 
   it('returns available tasks matching the city filter', async () => {
-    const owner = await createUser(ctx.app, ctx.prisma)
+    const owner = await createUser(ctx.app, ctx.prisma, { userType: 'PROXY' })
 
     await createTask(ctx.prisma, owner.id, { locationAddress: 'São Paulo' })
     await createTask(ctx.prisma, owner.id, {
@@ -84,7 +84,7 @@ describe('GET /tasks/fetch (e2e)', () => {
   })
 
   it('exposes only the public owner fields and numeric money', async () => {
-    const owner = await createUser(ctx.app, ctx.prisma)
+    const owner = await createUser(ctx.app, ctx.prisma, { userType: 'PROXY' })
     await createTask(ctx.prisma, owner.id, { locationAddress: 'São Paulo' })
 
     const response = await request(ctx.app.getHttpServer())
@@ -101,7 +101,7 @@ describe('GET /tasks/fetch (e2e)', () => {
   })
 
   it('returns the empty page shape for an unserved city', async () => {
-    const user = await createUser(ctx.app, ctx.prisma)
+    const user = await createUser(ctx.app, ctx.prisma, { userType: 'PROXY' })
 
     const response = await request(ctx.app.getHttpServer())
       .get('/tasks/fetch?city=Curitiba')
@@ -117,7 +117,7 @@ describe('GET /tasks/fetch (e2e)', () => {
   })
 
   it('matches the city case- and accent-insensitively', async () => {
-    const owner = await createUser(ctx.app, ctx.prisma)
+    const owner = await createUser(ctx.app, ctx.prisma, { userType: 'PROXY' })
     await createTask(ctx.prisma, owner.id)
 
     const response = await request(ctx.app.getHttpServer())
@@ -129,7 +129,7 @@ describe('GET /tasks/fetch (e2e)', () => {
   })
 
   it('does not match by address substring', async () => {
-    const owner = await createUser(ctx.app, ctx.prisma)
+    const owner = await createUser(ctx.app, ctx.prisma, { userType: 'PROXY' })
     await createTask(ctx.prisma, owner.id, {
       city: 'Rio de Janeiro',
       state: 'RJ',
@@ -145,7 +145,7 @@ describe('GET /tasks/fetch (e2e)', () => {
   })
 
   it('paginates 11 tasks into 10 + 1 with hasMore', async () => {
-    const owner = await createUser(ctx.app, ctx.prisma)
+    const owner = await createUser(ctx.app, ctx.prisma, { userType: 'PROXY' })
     for (let i = 0; i < 11; i++) {
       await createTask(ctx.prisma, owner.id, { title: `Task ${i}` })
     }
@@ -168,7 +168,7 @@ describe('GET /tasks/fetch (e2e)', () => {
   })
 
   it('rejects page=0', async () => {
-    const user = await createUser(ctx.app, ctx.prisma)
+    const user = await createUser(ctx.app, ctx.prisma, { userType: 'PROXY' })
 
     const response = await request(ctx.app.getHttpServer())
       .get('/tasks/fetch?city=São Paulo&page=0')
@@ -178,7 +178,7 @@ describe('GET /tasks/fetch (e2e)', () => {
   })
 
   it('rejects an out-of-range page', async () => {
-    const user = await createUser(ctx.app, ctx.prisma)
+    const user = await createUser(ctx.app, ctx.prisma, { userType: 'PROXY' })
 
     const response = await request(ctx.app.getHttpServer())
       .get('/tasks/fetch?city=São Paulo&page=1000000000000')
@@ -189,7 +189,7 @@ describe('GET /tasks/fetch (e2e)', () => {
   })
 
   it('returns an empty page past the last one', async () => {
-    const owner = await createUser(ctx.app, ctx.prisma)
+    const owner = await createUser(ctx.app, ctx.prisma, { userType: 'PROXY' })
     await createTask(ctx.prisma, owner.id)
 
     const response = await request(ctx.app.getHttpServer())
@@ -203,5 +203,16 @@ describe('GET /tasks/fetch (e2e)', () => {
       perPage: 10,
       hasMore: false,
     })
+  })
+
+  it('answers 403 USER_NOT_PROXY to a CLIENT', async () => {
+    const client = await createUser(ctx.app, ctx.prisma, { userType: 'CLIENT' })
+
+    const response = await request(ctx.app.getHttpServer())
+      .get('/tasks/fetch?city=SP')
+      .set('Authorization', `Bearer ${client.token}`)
+
+    expect(response.status).toBe(403)
+    expect(response.body).toMatchObject({ errorCode: 'USER_NOT_PROXY' })
   })
 })

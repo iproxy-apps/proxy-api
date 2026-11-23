@@ -483,4 +483,23 @@ describe('POST /tasks/start (e2e)', () => {
     expect(response.body).toMatchObject({ errorCode: 'VALIDATION_FAILED' })
     expect(ctx.stripeMock.chargeSavedCard).not.toHaveBeenCalled()
   })
+
+  it('refuses to start a task whose owner deleted the account', async () => {
+    const { owner, proxy, task } = await seed()
+    await ctx.prisma.users.update({
+      where: { id: owner.id },
+      data: { isDeleted: true },
+    })
+
+    const response = await start(proxy, task.id)
+
+    expect(response.status).toBe(400)
+    expect(response.body.errorCode).toBe('TASK_NOT_AVAILABLE')
+    const t = await stored(task.id)
+    expect(t.status).toBe('available')
+    expect(t.startedAt).toBeNull()
+    expect(await mappingOf(task.id)).toBeNull()
+    expect(await paymentCount(task.id)).toBe(0)
+    expect(ctx.stripeMock.chargeSavedCard).not.toHaveBeenCalled()
+  })
 })

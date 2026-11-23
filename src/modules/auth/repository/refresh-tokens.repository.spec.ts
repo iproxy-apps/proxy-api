@@ -1,4 +1,7 @@
-import { RefreshTokensRepository } from './refresh-tokens.repository'
+import {
+  RefreshTokensRepository,
+  SessionNotIssuableError,
+} from './refresh-tokens.repository'
 
 import type { PrismaService } from 'src/prisma/prisma.service'
 
@@ -7,6 +10,12 @@ const makeTx = (calls: string[], updateCount = 1) => ({
     calls.push('lock')
     return 0
   }),
+  users: {
+    findUnique: jest.fn(async () => {
+      calls.push('find-user')
+      return { password: 'hash', isDeleted: false }
+    }),
+  },
   refreshTokens: {
     create: jest.fn(async () => {
       calls.push('create')
@@ -57,11 +66,25 @@ describe('RefreshTokensRepository lock order', () => {
     expect(calls).toEqual(['find', 'lock', 'update'])
   })
 
-  it('revokeAllForUser locks first, with and without a tx', async () => {
+  it('createForUser locks, re-checks the hash, then inserts', async () => {
     const calls: string[] = []
     const tx = makeTx(calls)
-    await makeRepo(tx).revokeAllForUser('user-1')
-    await makeRepo(tx).revokeAllForUser('user-1', tx as never)
-    expect(calls).toEqual(['lock', 'update', 'lock', 'update'])
+    await makeRepo(tx).createForUser('user-1', 'hash', next)
+    expect(calls).toEqual(['lock', 'find-user', 'create'])
+  })
+
+  it.each([
+    ['hash mismatch', { password: 'other', isDeleted: false }],
+    ['deleted user', { password: 'hash', isDeleted: true }],
+    ['missing user', null],
+  ])('createForUser refuses on %s without inserting', async (_, row) => {
+    const calls: string[] = []
+    const tx = makeTx(calls)
+    tx.users.findUnique.mockResolvedValueOnce(row as never)
+    await expect(
+      makeRepo(tx).createForUser('user-1', 'hash', next),
+    ).rejects.toBeInstanceOf(SessionNotIssuableError)
+    expect(calls).toEqual(['lock'])
+    expect(tx.refreshTokens.create).not.toHaveBeenCalled()
   })
 })

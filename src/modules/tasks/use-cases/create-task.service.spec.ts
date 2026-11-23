@@ -1,5 +1,7 @@
 import { CreateTaskService } from './create-task.service'
 import { TasksRepository } from '../repository/tasks.repository'
+import { errorDictionary } from 'src/exception/error-dictionary'
+import { OwnerUnavailableError } from 'src/common/owner-lock'
 import { AppException } from 'src/exception/app.exception'
 import { SaveCardService } from 'src/modules/cards/use-cases/save-card.service'
 import { FetchUserCardService } from 'src/modules/cards/use-cases/fetch-user-card.service'
@@ -128,5 +130,13 @@ describe('CreateTaskService', () => {
     const result = await service.execute(makeInput())
 
     expect(result).toEqual({ id: 'task-1' })
+  })
+
+  it('maps a deleted owner (raised by the repository) to user.notFound', async () => {
+    tasksRepository.createTask.mockRejectedValue(new OwnerUnavailableError())
+
+    await expect(service.execute(makeInput())).rejects.toMatchObject({
+      errorCode: errorDictionary.user.notFound.errorCode,
+    })
   })
 })

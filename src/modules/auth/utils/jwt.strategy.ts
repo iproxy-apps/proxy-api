@@ -17,6 +17,8 @@ export const jwtClaimsSchema = sessionPayloadSchema.extend({
   exp: z.number(),
 })
 
+export type SessionClaims = z.infer<typeof jwtClaimsSchema>
+
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
   constructor(
@@ -32,7 +34,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     })
   }
 
-  async validate(payload: unknown): Promise<SessionPayload> {
+  async validate(payload: unknown): Promise<SessionClaims> {
     const parsed = jwtClaimsSchema.safeParse(payload)
     if (!parsed.success) throw new UnauthorizedException()
     const claims = parsed.data

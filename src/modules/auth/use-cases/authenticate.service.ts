@@ -5,6 +5,7 @@ import { AppException } from 'src/exception/app.exception'
 import { errorDictionary } from 'src/exception/error-dictionary'
 import { AuthRepository } from '../repository/auth.repository'
 import { DUMMY_PASSWORD_HASH } from '../utils/password'
+import { SessionNotIssuableError } from '../repository/refresh-tokens.repository'
 import { IssueSessionService } from './issue-session.service'
 
 import type { AuthenticateServiceResponse } from '../types'
@@ -39,6 +40,13 @@ export class AuthenticateService {
       throw new AppException(errorDictionary.user.invalidCredentials)
     }
 
-    return await this.issueSessionService.issue(user)
+    try {
+      return await this.issueSessionService.issue(user)
+    } catch (error) {
+      if (error instanceof SessionNotIssuableError) {
+        throw new AppException(errorDictionary.user.invalidCredentials)
+      }
+      throw error
+    }
   }
 }

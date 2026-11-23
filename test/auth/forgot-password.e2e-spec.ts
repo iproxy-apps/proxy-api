@@ -150,4 +150,25 @@ describe('POST /auth/forgot-password (e2e)', () => {
     expect(codes[0].state).toBe('used')
     expect(codes[1].state).toBe('pending')
   })
+
+  it('treats a deleted user as unknown: generic answer, no code, no mail', async () => {
+    const user = await createUser(ctx.app, ctx.prisma)
+    const scrubbed = `deleted-${user.id}@deleted.local`
+    await ctx.prisma.users.update({
+      where: { id: user.id },
+      data: { isDeleted: true, deletedAt: new Date(), email: scrubbed },
+    })
+
+    const response = await request(ctx.app.getHttpServer())
+      .post('/auth/forgot-password')
+      .send({ email: scrubbed })
+
+    expect(response.status).toBe(200)
+    expect(response.body).toMatchObject({ message: silentMessage })
+    await settle()
+    expect(ctx.notificationMock.sendResetCodeByEmail).not.toHaveBeenCalled()
+    expect(
+      await ctx.prisma.passwordResetCodes.count({ where: { userId: user.id } }),
+    ).toBe(0)
+  })
 })

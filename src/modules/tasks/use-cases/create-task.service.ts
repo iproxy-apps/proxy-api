@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common'
 
+import { OwnerUnavailableError } from 'src/common/owner-lock'
 import { computeCharge } from 'src/common/money'
 import { matchServedCity } from 'src/common/served-cities'
 import { AppException } from 'src/exception/app.exception'
@@ -70,21 +71,29 @@ export class CreateTaskService {
         : formattedAddress
       : `${street}, ${served.city} - ${served.state}, ${zipCode}`
 
-    const task = await this.tasksRepository.createTask({
-      title,
-      userId,
-      description,
-      locationLat,
-      locationLng,
-      locationAddress,
-      city: served.city,
-      state: served.state,
-      offeredPrice: rest.offeredPrice,
-      platformFee,
-      stripeFee,
-      chargedAmount,
-      proxyEarnings,
-    })
+    let task: { id: string }
+    try {
+      task = await this.tasksRepository.createTask({
+        title,
+        userId,
+        description,
+        locationLat,
+        locationLng,
+        locationAddress,
+        city: served.city,
+        state: served.state,
+        offeredPrice: rest.offeredPrice,
+        platformFee,
+        stripeFee,
+        chargedAmount,
+        proxyEarnings,
+      })
+    } catch (error) {
+      if (error instanceof OwnerUnavailableError) {
+        throw new AppException(errorDictionary.user.notFound)
+      }
+      throw error
+    }
 
     return { id: task.id }
   }

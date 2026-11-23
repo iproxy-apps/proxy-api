@@ -3,7 +3,10 @@ import { Injectable } from '@nestjs/common'
 
 import { AppException } from 'src/exception/app.exception'
 import { AuthRepository } from '../repository/auth.repository'
-import { buildSessionPayload } from '../utils/session-payload'
+import {
+  buildSessionPayload,
+  remainingLifetime,
+} from '../utils/session-payload'
 import { errorDictionary } from 'src/exception/error-dictionary'
 
 import type {
@@ -20,7 +23,7 @@ export class UpdateProfileService {
   ) {}
 
   async execute(data: UpdateProfileInput): Promise<AccessTokenResponse> {
-    const { userId, name, phoneNumber } = data
+    const { userId, exp, name, phoneNumber } = data
 
     const userDetails = await this.authRepository.fetchUserDetailsById(userId)
 
@@ -36,7 +39,9 @@ export class UpdateProfileService {
 
     if (!updatedUser) throw new AppException(errorDictionary.user.notFound)
 
-    const session = this.jwt.sign(buildSessionPayload(updatedUser))
+    const session = this.jwt.sign(buildSessionPayload(updatedUser), {
+      expiresIn: remainingLifetime(exp),
+    })
 
     return { session }
   }
