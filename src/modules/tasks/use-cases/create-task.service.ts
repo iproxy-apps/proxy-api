@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common'
 
 import { TasksRepository } from '../repository/tasks.repository'
-import { CreateUserSourceService } from 'src/modules/cards/use-cases/create-user-payment-method.service'
+import { SaveCardService } from 'src/modules/cards/use-cases/save-card.service'
 import { UpdateTotalTasksCreatedService } from 'src/modules/auth/use-cases/update-total-tasks-created.service'
 
 import type { CreateTaskData } from '../types'
@@ -10,7 +10,7 @@ import type { CreateTaskData } from '../types'
 export class CreateTaskService {
   constructor(
     private tasksRepository: TasksRepository,
-    private createUserSourceService: CreateUserSourceService,
+    private saveCardService: SaveCardService,
     private updateTotalTasksCreatedService: UpdateTotalTasksCreatedService,
   ) {}
 
@@ -28,7 +28,6 @@ export class CreateTaskService {
       offeredPrice,
 
       token,
-      savedCard,
     } = data
 
     const locationAddress = `${street}, ${city} - ${state}, ${zipCode}`
@@ -43,11 +42,10 @@ export class CreateTaskService {
       locationAddress,
     })
 
-    await this.createUserSourceService.execute({
-      token,
-      userId,
-      savedCard,
-    })
+    // bridge until P1-T06 rewrites /tasks/create with the "card before insert" rule
+    if (token) {
+      await this.saveCardService.execute({ userId, paymentMethodId: token })
+    }
 
     await this.updateTotalTasksCreatedService.execute({
       id: userId,

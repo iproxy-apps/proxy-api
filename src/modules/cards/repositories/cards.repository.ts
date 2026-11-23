@@ -5,7 +5,7 @@ import { PrismaService } from 'src/prisma/prisma.service'
 import type {
   UserCard,
   CreateUserSourceData,
-  UpdateUserSourceData,
+  ReplaceUserCardData,
 } from '../types'
 import type { CardsRepositoryDTO } from '../dtos/cards-repository.dto'
 
@@ -37,15 +37,33 @@ export class CardsRepository implements CardsRepositoryDTO {
     })
   }
 
-  async updateUserSource(data: UpdateUserSourceData): Promise<UserCard> {
-    const { id, brand, last4, stripeCardId } = data
-    return await this.prisma.cards.update({
-      where: { id },
-      data: {
-        brand,
-        last4,
-        stripeCardId,
-      },
+  async replaceUserCard(
+    data: ReplaceUserCardData,
+  ): Promise<{ card: UserCard; previousStripeCardId: string | null }> {
+    const { userId, stripeCardId, brand, last4 } = data
+
+    return await this.prisma.$transaction(async (tx) => {
+      const previous = await tx.cards.findFirst({
+        where: { userId, isDeleted: false },
+      })
+
+      if (previous) {
+        await tx.cards.update({
+          where: { id: previous.id },
+          data: { isDeleted: true },
+        })
+      }
+
+      const card = await tx.cards.create({
+        data: { userId, stripeCardId, brand, last4 },
+      })
+
+      await tx.users.update({
+        where: { id: userId },
+        data: { cardActionRequired: false },
+      })
+
+      return { card, previousStripeCardId: previous?.stripeCardId ?? null }
     })
   }
 

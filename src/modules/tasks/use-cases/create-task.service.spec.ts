@@ -1,15 +1,13 @@
 import { CreateTaskService } from './create-task.service'
 import { TasksRepository } from '../repository/tasks.repository'
-import { CreateUserSourceService } from 'src/modules/cards/use-cases/create-user-payment-method.service'
+import { SaveCardService } from 'src/modules/cards/use-cases/save-card.service'
 import { UpdateTotalTasksCreatedService } from 'src/modules/auth/use-cases/update-total-tasks-created.service'
 
 import type { CreateTaskData } from '../types'
 
 type TasksRepositoryMock = jest.Mocked<Pick<TasksRepository, 'create'>>
 
-type CreateUserSourceServiceMock = jest.Mocked<
-  Pick<CreateUserSourceService, 'execute'>
->
+type SaveCardServiceMock = jest.Mocked<Pick<SaveCardService, 'execute'>>
 
 type UpdateTotalTasksCreatedServiceMock = jest.Mocked<
   Pick<UpdateTotalTasksCreatedService, 'execute'>
@@ -34,7 +32,7 @@ const makeInput = (
 describe('CreateTaskService', () => {
   let service: CreateTaskService
   let tasksRepository: TasksRepositoryMock
-  let createUserSourceService: CreateUserSourceServiceMock
+  let saveCardService: SaveCardServiceMock
   let updateTotalTasksCreatedService: UpdateTotalTasksCreatedServiceMock
 
   beforeEach(() => {
@@ -45,12 +43,12 @@ describe('CreateTaskService', () => {
           ReturnType<TasksRepository['create']>
         >),
     }
-    createUserSourceService = { execute: jest.fn() }
+    saveCardService = { execute: jest.fn() }
     updateTotalTasksCreatedService = { execute: jest.fn() }
 
     service = new CreateTaskService(
       tasksRepository as unknown as TasksRepository,
-      createUserSourceService as unknown as CreateUserSourceService,
+      saveCardService as unknown as SaveCardService,
       updateTotalTasksCreatedService as unknown as UpdateTotalTasksCreatedService,
     )
   })
@@ -79,13 +77,12 @@ describe('CreateTaskService', () => {
     })
   })
 
-  it('forwards card details to createUserSourceService', async () => {
+  it('saves the card through saveCardService when a token is provided', async () => {
     await service.execute(makeInput({ token: 'tok_123', savedCard: 'pm_456' }))
 
-    expect(createUserSourceService.execute).toHaveBeenCalledWith({
+    expect(saveCardService.execute).toHaveBeenCalledWith({
       userId: 'user-1',
-      token: 'tok_123',
-      savedCard: 'pm_456',
+      paymentMethodId: 'tok_123',
     })
   })
 

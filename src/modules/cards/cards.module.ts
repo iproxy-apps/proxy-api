@@ -8,7 +8,9 @@ import { FetchUserCardService } from './use-cases/fetch-user-card.service'
 import { DeleteUserCardService } from './use-cases/delete-user-card.service'
 import { FetchUserCardController } from './controllers/fetch-user-card.controller'
 import { DeleteUserCardController } from './controllers/delete-user-card.controller'
-import { CreateUserSourceService } from './use-cases/create-user-payment-method.service'
+import { SaveCardService } from './use-cases/save-card.service'
+import { CreateSetupIntentService } from './use-cases/create-setup-intent.service'
+import { CreateSetupIntentController } from './controllers/create-setup-intent.controller'
 import { CreateUserPaymentMethodController } from './controllers/create-user-payment-method.controller'
 
 @Module({
@@ -19,12 +21,14 @@ import { CreateUserPaymentMethodController } from './controllers/create-user-pay
     CardsRepository,
     FetchUserCardService,
     DeleteUserCardService,
-    CreateUserSourceService,
+    SaveCardService,
+    CreateSetupIntentService,
   ],
   controllers: [
     FetchUserCardController,
     DeleteUserCardController,
     CreateUserPaymentMethodController,
+    CreateSetupIntentController,
   ],
 })
 export class CardsModule {}

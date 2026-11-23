@@ -127,15 +127,6 @@ export class StripeService {
     return await this.stripe.paymentMethods.retrieve(paymentMethodId)
   }
 
-  async attachPaymentMethodToCustomer(
-    paymentMethodId: string,
-    customer: string,
-  ) {
-    return await this.stripe.paymentMethods.attach(paymentMethodId, {
-      customer,
-    })
-  }
-
   async detachPaymentMethod(paymentMethodId: string) {
     return await this.stripe.paymentMethods.detach(paymentMethodId)
   }

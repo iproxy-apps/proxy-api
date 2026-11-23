@@ -18,9 +18,14 @@ export type UserCard = {
   stripeCardId: string
 }
 
-export type UpdateUserSourceData = {
-  id: string
+export type SaveCardData = {
+  userId: string
+  paymentMethodId: string
+}
+
+export type ReplaceUserCardData = {
+  userId: string
+  stripeCardId: string
   brand: string
   last4: string
-  stripeCardId: string
 }

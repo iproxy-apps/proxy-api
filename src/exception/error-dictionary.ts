@@ -82,6 +82,19 @@ export const errorDictionary = {
       errorCode: 'CARD_NOT_FOUND',
     } as const,
 
+    notConfirmed: {
+      message: 'Cartão não confirmado. Adicione o cartão novamente.',
+      statusCode: HttpStatus.BAD_REQUEST,
+      errorCode: 'CARD_NOT_CONFIRMED',
+    } as const,
+
+    alreadyExists: {
+      message:
+        'Já existe um cartão salvo. Atualize a tela e tente novamente.',
+      statusCode: HttpStatus.CONFLICT,
+      errorCode: 'CARD_ALREADY_EXISTS',
+    } as const,
+
     cannotDeleteCard: {
       message: 'Você não tem permissão para remover este cartão.',
       statusCode: HttpStatus.FORBIDDEN,
