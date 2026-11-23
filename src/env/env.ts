@@ -17,6 +17,7 @@ export const envSchema = z.object({
   AWS_ACCESS_KEY_ID: z.string(),
   AWS_SECRET_ACCESS_KEY: z.string(),
   AWS_SES_FROM_EMAIL: z.string(),
+  LOOP_TEST_HOOKS: z.enum(['0', '1']).default('0'),
 })
 
 export type Env = z.infer<typeof envSchema>

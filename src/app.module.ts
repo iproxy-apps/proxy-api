@@ -12,6 +12,7 @@ import { TasksModule } from './modules/tasks/tasks.module'
 import { CardsModule } from './modules/cards/cards.module'
 import { PaymentsModule } from './modules/payments/payments.module'
 import { RatingsModule } from './modules/ratings/ratings.module'
+import { TestHooksModule } from './modules/test-hooks/test-hooks.module'
 import { StripeWebhookModule } from './modules/stripe-webhook/stripe-webhook.module'
 
 @Module({
@@ -40,6 +41,7 @@ import { StripeWebhookModule } from './modules/stripe-webhook/stripe-webhook.mod
     PaymentsModule,
     RatingsModule,
     StripeWebhookModule,
+    TestHooksModule,
   ],
 })
 export class AppModule {}

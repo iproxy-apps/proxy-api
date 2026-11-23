@@ -3,6 +3,7 @@ import { INestApplication } from '@nestjs/common'
 
 import { AppModule } from 'src/app.module'
 import { PrismaService } from 'src/prisma/prisma.service'
+import { TRUNCATE_TABLES } from 'src/modules/test-hooks/truncate-tables'
 import { StripeService } from 'src/stripe/stripe.service'
 import { HttpExceptionFilter } from 'src/exception/http.exception'
 import { NotificationService } from 'src/notification/notification.service'
@@ -16,17 +17,6 @@ export type TestAppContext = {
   stripeMock: jest.Mocked<StripeService>
   notificationMock: jest.Mocked<NotificationService>
 }
-
-const TRUNCATE_TABLES = [
-  'cards',
-  'tasks',
-  'users',
-  'ratings',
-  'payments',
-  'stripe_events',
-  'user_task_mapping',
-  'password_reset_codes',
-]
 
 export const createTestApp = async (): Promise<TestAppContext> => {
   const stripeMock = createStripeServiceMock()
