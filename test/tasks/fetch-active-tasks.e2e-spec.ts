@@ -42,6 +42,21 @@ describe('GET /tasks/active (e2e)', () => {
     expect(response.body).toEqual([])
   })
 
+  it('exposes only the public owner fields and numeric money', async () => {
+    const owner = await createUser(ctx.app, ctx.prisma)
+    await createTask(ctx.prisma, owner.id, { status: 'available' })
+
+    const response = await request(ctx.app.getHttpServer())
+      .get('/tasks/active')
+      .set('Authorization', `Bearer ${owner.token}`)
+
+    expect(response.status).toBe(200)
+    expect(Object.keys(response.body[0].ownerId).sort()).toEqual(
+      ['avatarUrl', 'id', 'name', 'rating', 'totalTasksCreated'],
+    )
+    expect(typeof response.body[0].offeredPrice).toBe('number')
+  })
+
   it('returns owner tasks in any non-terminal status (including available)', async () => {
     const owner = await createUser(ctx.app, ctx.prisma)
     const available = await createTask(ctx.prisma, owner.id, {

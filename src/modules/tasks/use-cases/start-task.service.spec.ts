@@ -10,6 +10,7 @@ import { makeUser } from 'src/modules/auth/test-utils/user.factory'
 import { NotificationService } from 'src/notification/notification.service'
 import { PaymentsRepository } from 'src/modules/payments/repository/payments.repository'
 import { FetchUserCardService } from 'src/modules/cards/use-cases/fetch-user-card.service'
+import { AuthRepository } from 'src/modules/auth/repository/auth.repository'
 import { FetchUserDetailsService } from 'src/modules/auth/use-cases/fetch-user-details.service'
 
 import type { PaymentRecord } from 'src/modules/payments/types'
@@ -40,6 +41,9 @@ type FetchUserCardServiceMock = jest.Mocked<
 type FetchUserDetailsServiceMock = jest.Mocked<
   Pick<FetchUserDetailsService, 'execute'>
 >
+type AuthRepositoryMock = jest.Mocked<
+  Pick<AuthRepository, 'findUserStripeCustomerId' | 'fetchUserDetailsById'>
+>
 type NotificationServiceMock = jest.Mocked<
   Pick<NotificationService, 'sendCardChargeFailedEmail'>
 >
@@ -50,17 +54,6 @@ const makeTaskWithOwner = (
   makeTaskDetails({
     owner: 'client-1',
     offeredPrice: new Prisma.Decimal(100),
-    ownerId: {
-      rating: new Prisma.Decimal(5),
-      name: 'Owner',
-      id: 'client-1',
-      avatarUrl: null,
-      phoneNumber: null,
-      totalTasksCreated: 0,
-      email: 'owner@test.io',
-      totalTasksCompleted: 0,
-      stripeCustomerId: 'cus_owner',
-    },
     ...overrides,
   })
 
@@ -77,6 +70,7 @@ describe('StartTaskService', () => {
   let fetchUserCardService: FetchUserCardServiceMock
   let fetchUserDetailsService: FetchUserDetailsServiceMock
   let notificationService: NotificationServiceMock
+  let authRepository: AuthRepositoryMock
 
   const args = { taskId: 'task-1', userId: 'proxy-1' }
 
@@ -104,6 +98,13 @@ describe('StartTaskService', () => {
       sendCardChargeFailedEmail: jest.fn().mockResolvedValue(undefined),
     }
 
+    authRepository = {
+      findUserStripeCustomerId: jest.fn().mockResolvedValue('cus_owner'),
+      fetchUserDetailsById: jest
+        .fn()
+        .mockResolvedValue(makeUser({ email: 'owner@test.io', name: 'Owner' })),
+    }
+
     service = new StartTaskService(
       stripeService as unknown as StripeService,
       tasksRepository as unknown as TasksRepository,
@@ -111,6 +112,7 @@ describe('StartTaskService', () => {
       fetchUserCardService as unknown as FetchUserCardService,
       fetchUserDetailsService as unknown as FetchUserDetailsService,
       notificationService as unknown as NotificationService,
+      authRepository as unknown as AuthRepository,
     )
   })
 
@@ -240,9 +242,7 @@ describe('StartTaskService', () => {
 
   it('does not claim or charge when the owner has no Stripe customer', async () => {
     happyPath()
-    const task = makeTaskWithOwner()
-    task.ownerId.stripeCustomerId = null
-    tasksRepository.fetchTaskById.mockResolvedValue(task)
+    authRepository.findUserStripeCustomerId.mockResolvedValue(null)
 
     await expectCode(
       service.execute(args),

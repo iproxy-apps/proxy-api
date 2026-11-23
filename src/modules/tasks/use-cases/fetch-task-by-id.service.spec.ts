@@ -1,3 +1,5 @@
+import { Prisma } from '@prisma/client'
+import { toTaskResponse } from '../utils/task-response'
 import { AppException } from 'src/exception/app.exception'
 import { makeTaskDetails } from '../test-utils/task.factory'
 import { TasksRepository } from '../repository/tasks.repository'
@@ -72,7 +74,7 @@ describe('FetchTaskByIdService', () => {
     const result = await service.execute('task-1', proxyRequester)
 
     expect(result).toEqual({
-      ...task,
+      ...toTaskResponse(task),
       payment: null,
       executorId: null,
       executor: null,
@@ -93,10 +95,9 @@ describe('FetchTaskByIdService', () => {
       id: 'user-proxy-executor',
       name: 'Jane Proxy',
       avatarUrl: null,
-      rating: 4.8,
-    } as unknown as Awaited<
-      ReturnType<TasksRepository['fetchTaskCounterpartById']>
-    >
+      rating: new Prisma.Decimal('4.8'),
+      totalTasksCreated: 0,
+    }
     tasksRepository.fetchTaskCounterpartById.mockResolvedValue(executor)
 
     const result = await service.execute('task-1', proxyRequester)
@@ -105,7 +106,7 @@ describe('FetchTaskByIdService', () => {
       'user-proxy-executor',
     )
     expect(result.executorId).toBe('user-proxy-executor')
-    expect(result.executor).toBe(executor)
+    expect(result.executor).toEqual({ ...executor, rating: 4.8 })
   })
 
   it('returns the task with its payment record when present', async () => {

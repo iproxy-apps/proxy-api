@@ -60,14 +60,32 @@ describe('GET /tasks/:id (e2e)', () => {
     })
     expect(response.body.ownerId).toMatchObject({
       id: owner.id,
-      email: owner.email,
+      name: owner.name,
     })
+    expect(response.body.ownerId).not.toHaveProperty('email')
+    expect(response.body.ownerId).not.toHaveProperty('stripeCustomerId')
     expect(response.body.payment).toBeNull()
     expect(Number(response.body.chargedAmount)).toBe(50)
     expect(Number(response.body.stripeFee)).toBe(2.39)
     expect(Number(response.body.platformFee)).toBe(10)
     expect(Number(response.body.proxyEarnings)).toBe(40)
     expect(response.body).not.toHaveProperty('platformNet')
+  })
+
+  it('includes completedAt and canceledAt', async () => {
+    const owner = await createUser(ctx.app, ctx.prisma)
+    const task = await createTask(ctx.prisma, owner.id, {
+      status: 'completed',
+      completedAt: new Date('2026-11-01T10:00:00Z'),
+    })
+
+    const response = await request(ctx.app.getHttpServer())
+      .get(`/tasks/${task.id}`)
+      .set('Authorization', `Bearer ${owner.token}`)
+
+    expect(response.status).toBe(200)
+    expect(response.body.completedAt).toBe('2026-11-01T10:00:00.000Z')
+    expect(response.body.canceledAt).toBeNull()
   })
 
   it('includes the payment record on the response when present', async () => {

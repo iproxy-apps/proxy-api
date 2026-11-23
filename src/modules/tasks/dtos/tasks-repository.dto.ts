@@ -1,8 +1,8 @@
 import type {
   ClaimTaskData,
   InsertTaskData,
-  TaskCounterpart,
-  FetchTasksResult,
+  PublicUser,
+  TaskRow,
   ReleaseClaimData,
   RecordTransferData,
   StaleTask,
@@ -16,14 +16,14 @@ import type {
 
 export interface TasksRepositoryDTO {
   createTask: (data: InsertTaskData) => Promise<CreateTaskResult>
-  fetchAllTasks: (data: FetchTasksQueryData) => Promise<FetchTasksResult[]>
-  fetchActiveTasksForUser: (userId: string) => Promise<FetchTasksResult[]>
+  fetchAllTasks: (data: FetchTasksQueryData) => Promise<TaskRow[]>
+  fetchActiveTasksForUser: (userId: string) => Promise<TaskRow[]>
   insertTaskUserMapping: (taskId: string, executorId: string) => Promise<void>
-  fetchTaskById: (data: FetchTaskByIdData) => Promise<FetchTasksResult | null>
+  fetchTaskById: (data: FetchTaskByIdData) => Promise<TaskRow | null>
   fetchTaskMappingByTaskId: (
     taskId: string,
   ) => Promise<FetchTaskUserMappingQueryData | null>
-  fetchTaskCounterpartById: (userId: string) => Promise<TaskCounterpart | null>
+  fetchTaskCounterpartById: (userId: string) => Promise<PublicUser | null>
   transition: (data: TransitionTaskData) => Promise<boolean>
   claimTask: (data: ClaimTaskData) => Promise<boolean>
   releaseClaim: (data: ReleaseClaimData) => Promise<boolean>

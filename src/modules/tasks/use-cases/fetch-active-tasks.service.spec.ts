@@ -1,5 +1,6 @@
 import { makeTaskDetails } from '../test-utils/task.factory'
 import { TasksRepository } from '../repository/tasks.repository'
+import { toTaskResponse } from '../utils/task-response'
 import { FetchActiveTasksService } from './fetch-active-tasks.service'
 
 type TasksRepositoryMock = jest.Mocked<
@@ -26,12 +27,13 @@ describe('FetchActiveTasksService', () => {
     expect(tasksRepository.fetchActiveTasksForUser).toHaveBeenCalledWith('user-1')
   })
 
-  it('returns the tasks from the repository as-is', async () => {
+  it('maps the repository rows to numeric task responses', async () => {
     const tasks = [makeTaskDetails({ id: 't1' }), makeTaskDetails({ id: 't2' })]
     tasksRepository.fetchActiveTasksForUser.mockResolvedValue(tasks)
 
     const result = await service.execute('user-1')
 
-    expect(result).toBe(tasks)
+    expect(result).toEqual(tasks.map(toTaskResponse))
+    expect(typeof result[0].offeredPrice).toBe('number')
   })
 })

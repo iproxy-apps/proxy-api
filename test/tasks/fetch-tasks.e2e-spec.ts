@@ -83,6 +83,23 @@ describe('GET /tasks/fetch (e2e)', () => {
     })
   })
 
+  it('exposes only the public owner fields and numeric money', async () => {
+    const owner = await createUser(ctx.app, ctx.prisma)
+    await createTask(ctx.prisma, owner.id, { locationAddress: 'São Paulo' })
+
+    const response = await request(ctx.app.getHttpServer())
+      .get('/tasks/fetch?city=São Paulo')
+      .set('Authorization', `Bearer ${owner.token}`)
+
+    expect(response.status).toBe(200)
+    const [item] = response.body.items
+    expect(Object.keys(item.ownerId).sort()).toEqual(
+      ['avatarUrl', 'id', 'name', 'rating', 'totalTasksCreated'],
+    )
+    expect(typeof item.offeredPrice).toBe('number')
+    expect(typeof item.ownerId.rating).toBe('number')
+  })
+
   it('returns the empty page shape for an unserved city', async () => {
     const user = await createUser(ctx.app, ctx.prisma)
 

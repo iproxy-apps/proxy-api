@@ -1,4 +1,5 @@
 import type { Prisma } from '@prisma/client'
+import type { PublicUser, TaskRow } from '../repository/task-select'
 
 type Decimal = Prisma.Decimal
 
@@ -70,36 +71,31 @@ export type FetchTaskByIdData = {
   status?: TaskStatus
 }
 
-export type FetchTasksResult = {
-  title: string
-  description: string
-  locationLat: Decimal
-  locationLng: Decimal
-  offeredPrice: Decimal
-  proxyEarnings: Decimal | null
-  platformFee: Decimal | null
-  stripeFee: Decimal | null
-  chargedAmount: Decimal | null
-  proofImageUrl: string | null
-  id: string
-  locationAddress: string
-  city: string
-  state: string
-  status: TaskStatus
-  createdAt: Date
-  startedAt: Date | null
-  ownerId: {
-    name: string
-    id: string
-    email: string
-    phoneNumber: string | null
-    avatarUrl: string | null
-    rating: Decimal
-    totalTasksCompleted: number
-    totalTasksCreated: number
-    stripeCustomerId: string | null
-  }
-  owner: string
+export type { TaskRow, PublicUser }
+
+export type PublicUserResponse = Omit<PublicUser, 'rating'> & {
+  rating: number
+}
+
+export type TaskResponse = Omit<
+  TaskRow,
+  | 'locationLat'
+  | 'locationLng'
+  | 'offeredPrice'
+  | 'platformFee'
+  | 'stripeFee'
+  | 'chargedAmount'
+  | 'proxyEarnings'
+  | 'ownerId'
+> & {
+  locationLat: number
+  locationLng: number
+  offeredPrice: number
+  platformFee: number | null
+  stripeFee: number | null
+  chargedAmount: number | null
+  proxyEarnings: number | null
+  ownerId: PublicUserResponse
 }
 
 export type CreateTaskResult = {
@@ -124,13 +120,6 @@ export type FetchTaskUserMappingQueryData = {
   executorId: string
   createdAt: Date
   updatedAt: Date
-}
-
-export type TaskCounterpart = {
-  id: string
-  name: string
-  avatarUrl: string | null
-  rating: Decimal
 }
 
 export type ValidateTaskData = {
@@ -184,7 +173,7 @@ export type StaleTask = {
 }
 
 export type FetchTasksResponse = {
-  items: FetchTasksResult[]
+  items: TaskResponse[]
   page: number
   perPage: number
   hasMore: boolean

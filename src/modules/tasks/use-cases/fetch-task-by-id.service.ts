@@ -1,17 +1,18 @@
 import { Injectable } from '@nestjs/common'
 
 import { AppException } from 'src/exception/app.exception'
+import { toPublicUser, toTaskResponse } from '../utils/task-response'
 import { TasksRepository } from '../repository/tasks.repository'
 import { errorDictionary } from 'src/exception/error-dictionary'
 import { PaymentsRepository } from 'src/modules/payments/repository/payments.repository'
 
-import type { FetchTasksResult, TaskCounterpart } from '../types'
+import type { PublicUserResponse, TaskResponse } from '../types'
 import type { PaymentRecord } from 'src/modules/payments/types'
 
-type FetchTaskByIdResult = FetchTasksResult & {
+type FetchTaskByIdResult = TaskResponse & {
   payment: PaymentRecord | null
   executorId: string | null
-  executor: TaskCounterpart | null
+  executor: PublicUserResponse | null
 }
 
 type Requester = {
@@ -45,15 +46,15 @@ export class FetchTaskByIdService {
       this.tasksRepository.fetchTaskMappingByTaskId(taskId),
     ])
 
-    const executor = mapping?.executorId
+    const executorRow = mapping?.executorId
       ? await this.tasksRepository.fetchTaskCounterpartById(mapping.executorId)
       : null
 
     return {
-      ...task,
+      ...toTaskResponse(task),
       payment,
       executorId: mapping?.executorId ?? null,
-      executor,
+      executor: executorRow ? toPublicUser(executorRow) : null,
     }
   }
 }

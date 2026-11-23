@@ -1,14 +1,16 @@
 import { Prisma } from '@prisma/client'
-import type { FetchTasksResult, FetchTaskUserMappingQueryData } from '../types'
+import type { TaskRow, FetchTaskUserMappingQueryData } from '../types'
 
 export const makeTaskDetails = (
-  overrides: Partial<FetchTasksResult> = {},
-): FetchTasksResult => ({
+  overrides: Partial<TaskRow> = {},
+): TaskRow => ({
   id: 'task-1',
   title: 'title',
   locationLat: new Prisma.Decimal(0),
   locationLng: new Prisma.Decimal(0),
   startedAt: null,
+  completedAt: null,
+  canceledAt: null,
   owner: 'client-1',
   offeredPrice: new Prisma.Decimal(100),
   proxyEarnings: null,
@@ -26,12 +28,8 @@ export const makeTaskDetails = (
     rating: new Prisma.Decimal(5),
     name: 'name',
     id: 'client-1',
-    email: 'email',
     avatarUrl: null,
-    phoneNumber: null,
     totalTasksCreated: 0,
-    stripeCustomerId: null,
-    totalTasksCompleted: 0,
   },
   ...overrides,
 })

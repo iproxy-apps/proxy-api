@@ -3,6 +3,7 @@ import { Injectable, Logger } from '@nestjs/common'
 import { toCentavos } from 'src/common/money'
 import { StripeService } from 'src/stripe/stripe.service'
 import { AppException } from 'src/exception/app.exception'
+import { AuthRepository } from 'src/modules/auth/repository/auth.repository'
 import { TasksRepository } from '../repository/tasks.repository'
 import { errorDictionary } from 'src/exception/error-dictionary'
 import { NotificationService } from 'src/notification/notification.service'
@@ -27,6 +28,7 @@ export class StartTaskService {
     private fetchUserCardService: FetchUserCardService,
     private fetchUserDetailsService: FetchUserDetailsService,
     private notificationService: NotificationService,
+    private authRepository: AuthRepository,
   ) {}
 
   async execute(data: StartTaskData): Promise<StartTaskResult> {
@@ -68,9 +70,11 @@ export class StartTaskService {
 
     const notifyClient = async (): Promise<void> => {
       try {
+        const owner = await this.authRepository.fetchUserDetailsById(task.owner)
+        if (!owner) return
         await this.notificationService.sendCardChargeFailedEmail(
-          task.ownerId.email,
-          task.ownerId.name,
+          owner.email,
+          owner.name,
           task.title,
         )
       } catch (error) {
@@ -92,7 +96,9 @@ export class StartTaskService {
         throw error
       }
     }
-    const customer = task.ownerId.stripeCustomerId
+    const customer = await this.authRepository.findUserStripeCustomerId(
+      task.owner,
+    )
 
     if (!card || !card.stripeCardId || !customer) {
       if (ownClaim) {

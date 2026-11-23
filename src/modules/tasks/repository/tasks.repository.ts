@@ -1,7 +1,5 @@
 import { Injectable } from '@nestjs/common'
 
-import type { Prisma } from '@prisma/client'
-
 import { PrismaService } from 'src/prisma/prisma.service'
 
 import type {
@@ -12,48 +10,15 @@ import type {
   StaleTask,
   TransitionTaskData,
   TaskStatus,
-  TaskCounterpart,
-  FetchTasksResult,
+  PublicUser,
+  TaskRow,
   CreateTaskResult,
   FetchTaskByIdData,
   FetchTasksQueryData,
   FetchTaskUserMappingQueryData,
 } from '../types'
+import { publicUserSelect, taskSelect } from './task-select'
 import type { TasksRepositoryDTO } from '../dtos/tasks-repository.dto'
-
-export const taskSelect = {
-  id: true,
-  title: true,
-  description: true,
-  locationAddress: true,
-  city: true,
-  state: true,
-  locationLat: true,
-  locationLng: true,
-  offeredPrice: true,
-  proxyEarnings: true,
-  platformFee: true,
-  stripeFee: true,
-  chargedAmount: true,
-  proofImageUrl: true,
-  owner: true,
-  createdAt: true,
-  status: true,
-  startedAt: true,
-  ownerId: {
-    select: {
-      id: true,
-      name: true,
-      email: true,
-      phoneNumber: true,
-      avatarUrl: true,
-      rating: true,
-      totalTasksCompleted: true,
-      totalTasksCreated: true,
-      stripeCustomerId: true,
-    },
-  },
-} satisfies Prisma.TasksSelect
 
 @Injectable()
 export class TasksRepository implements TasksRepositoryDTO {
@@ -106,7 +71,7 @@ export class TasksRepository implements TasksRepositoryDTO {
     city,
     skip,
     take,
-  }: FetchTasksQueryData): Promise<FetchTasksResult[]> {
+  }: FetchTasksQueryData): Promise<TaskRow[]> {
     return await this.prisma.tasks.findMany({
       select: taskSelect,
       where: {
@@ -135,7 +100,7 @@ export class TasksRepository implements TasksRepositoryDTO {
 
   async fetchTaskById(
     data: FetchTaskByIdData,
-  ): Promise<FetchTasksResult | null> {
+  ): Promise<TaskRow | null> {
     return await this.prisma.tasks.findUnique({
       select: taskSelect,
       where: {
@@ -146,7 +111,7 @@ export class TasksRepository implements TasksRepositoryDTO {
     })
   }
 
-  async fetchActiveTasksForUser(userId: string): Promise<FetchTasksResult[]> {
+  async fetchActiveTasksForUser(userId: string): Promise<TaskRow[]> {
     return await this.prisma.tasks.findMany({
       select: taskSelect,
       where: {
@@ -191,15 +156,10 @@ export class TasksRepository implements TasksRepositoryDTO {
 
   async fetchTaskCounterpartById(
     userId: string,
-  ): Promise<TaskCounterpart | null> {
+  ): Promise<PublicUser | null> {
     return await this.prisma.users.findUnique({
       where: { id: userId },
-      select: {
-        id: true,
-        name: true,
-        avatarUrl: true,
-        rating: true,
-      },
+      select: publicUserSelect,
     })
   }
 
