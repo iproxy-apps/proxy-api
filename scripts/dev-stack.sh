@@ -177,6 +177,14 @@ cmd_up() {
   set -m
   # DEV_STACK_TEST_HOOKS=0 starts the api without the loop hooks (throttler active, /__test/* 404).
   # The owner's .env may lack these; the env schema requires them (fallbacks only, .env is never written).
+  # MAIL_PROVIDER/MAIL_FROM: .env does not go through this shell (the api loads it), so a fallback is
+  # exported only when neither the environment nor .env defines the key (names checked, values never read).
+  # Default is ses because an older .env carries the AWS SES keys; MAIL_FROM reuses AWS_SES_FROM_EMAIL from
+  # the environment when present.
+  local env_file="$ROOT/.env"
+  env_defined() { [[ -n "${!1:-}" ]] || grep -q "^$1=" "$env_file" 2>/dev/null; }
+  env_defined MAIL_PROVIDER || export MAIL_PROVIDER=ses
+  env_defined MAIL_FROM || export MAIL_FROM="${AWS_SES_FROM_EMAIL:-no-reply@proxy.local}"
   NODE_ENV="${NODE_ENV:-development}" \
     STRIPE_CONNECT_RETURN_URL="${STRIPE_CONNECT_RETURN_URL:-http://localhost:3000/callback}" \
     LOOP_TEST_HOOKS="${DEV_STACK_TEST_HOOKS:-1}" STRIPE_WEBHOOK_SECRET="$secret" \

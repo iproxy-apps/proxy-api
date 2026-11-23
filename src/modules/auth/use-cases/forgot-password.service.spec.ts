@@ -19,6 +19,15 @@ type NotificationServiceMock = jest.Mocked<
 
 type EnvServiceMock = jest.Mocked<Pick<EnvService, 'get'>>
 
+const waitFor = async (condition: () => boolean) => {
+  for (let i = 0; i < 200 && !condition(); i++) {
+    await new Promise((resolve) => setTimeout(resolve, 10))
+  }
+  expect(condition()).toBe(true)
+}
+
+const settle = () => new Promise((resolve) => setTimeout(resolve, 50))
+
 const SILENT_MESSAGE =
   'Se o email existir, um código de recuperação será enviado.'
 
@@ -65,6 +74,11 @@ describe('ForgotPasswordService', () => {
       message: SILENT_MESSAGE,
     })
 
+    await waitFor(
+      () => authRepository.countRecentPasswordResetCodes.mock.calls.length > 0,
+    )
+    await settle()
+
     expect(authRepository.createPasswordResetCode).not.toHaveBeenCalled()
     expect(notificationService.sendResetCodeByEmail).not.toHaveBeenCalled()
   })
@@ -76,10 +90,13 @@ describe('ForgotPasswordService', () => {
 
     const before = Date.now()
     const result = await service.execute({ email: 'user@test.io' })
-    const after = Date.now()
 
     expect(result).toEqual({ message: SILENT_MESSAGE })
 
+    await waitFor(
+      () => authRepository.createPasswordResetCode.mock.calls.length === 1,
+    )
+    const after = Date.now()
     expect(authRepository.createPasswordResetCode).toHaveBeenCalledTimes(1)
     const [userIdArg, hashedCode, expiresAt] =
       authRepository.createPasswordResetCode.mock.calls[0]
@@ -113,7 +130,23 @@ describe('ForgotPasswordService', () => {
       message: SILENT_MESSAGE,
     })
 
+    await waitFor(
+      () => notificationService.sendResetCodeByEmail.mock.calls.length === 1,
+    )
+    await settle()
+
     expect(authRepository.createPasswordResetCode).not.toHaveBeenCalled()
+  })
+
+  it('answers before the detached job counts, sends or persists', async () => {
+    authRepository.findByEmail.mockResolvedValue(makeUser())
+
+    await service.execute({ email: 'user@test.io' })
+
+    expect(authRepository.countRecentPasswordResetCodes).not.toHaveBeenCalled()
+    expect(notificationService.sendResetCodeByEmail).not.toHaveBeenCalled()
+    authRepository.countRecentPasswordResetCodes.mockResolvedValue(3)
+    await settle()
   })
 
   it('returns the generic message when persisting the code fails after sending', async () => {
@@ -126,5 +159,9 @@ describe('ForgotPasswordService', () => {
     await expect(service.execute({ email: 'user@test.io' })).resolves.toEqual({
       message: SILENT_MESSAGE,
     })
+
+    await waitFor(
+      () => authRepository.createPasswordResetCode.mock.calls.length === 1,
+    )
   })
 })

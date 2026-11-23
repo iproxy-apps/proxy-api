@@ -42,7 +42,9 @@ export default async function globalSetup() {
     `STRIPE_SECRET_KEY=sk_test_dummy`,
     `STRIPE_WEBHOOK_SECRET=whsec_test_dummy`,
     `STRIPE_CONNECT_WEBHOOK_SECRET=whsec_test_connect`,
-    `AWS_SES_FROM_EMAIL=test@example.com`,
+    `MAIL_PROVIDER=resend`,
+    `RESEND_API_KEY=re_test_dummy`,
+    `MAIL_FROM=Proxy <test@example.com>`,
     `STRIPE_CONNECT_RETURN_URL=http://localhost:3000/callback`,
     `PROOF_DIR=${join(tmpdir(), 'proxy-proofs-e2e')}`,
   ].join('\n')

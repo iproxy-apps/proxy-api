@@ -34,52 +34,69 @@ export class ForgotPasswordService {
       return GENERIC_RESPONSE
     }
 
-    const recentCodes = await this.authRepository.countRecentPasswordResetCodes(
-      user.id,
-    )
-
-    if (recentCodes >= 3) {
-      this.logger.warn(`Password reset throttled for user ${user.id}`)
-      return GENERIC_RESPONSE
-    }
-
-    const code = randomInt(0, 1_000_000).toString().padStart(6, '0')
-
-    try {
-      await this.notificationService.sendResetCodeByEmail(
-        user.email,
-        code,
-        user.name,
-      )
-    } catch (error) {
-      this.logger.error(
-        `Failed to send password reset email for user ${user.id}`,
-        error instanceof Error ? error.stack : undefined,
-      )
-      return GENERIC_RESPONSE
-    }
-
-    const hashedCode = await hash(code, 8)
-    const expiresAt = addMinutes(new Date(), 15)
-
-    try {
-      await this.authRepository.createPasswordResetCode(
-        user.id,
-        hashedCode,
-        expiresAt,
-      )
-    } catch (error) {
-      this.logger.error(
-        `Failed to persist password reset code for user ${user.id}`,
-        error instanceof Error ? error.stack : undefined,
-      )
-      return GENERIC_RESPONSE
-    }
-
-    if (this.env.get('NODE_ENV') === 'development') {
-      this.logger.debug(`Password reset code for ${email}: ${code}`)
-    }
+    // Answer right away so the response time does not reveal whether the
+    // account exists; count, send and persist run in a detached job.
+    setImmediate(() => {
+      void this.deliverCode(user, email)
+    })
 
     return GENERIC_RESPONSE
+  }
+
+  private async deliverCode(
+    user: { id: string; email: string; name: string },
+    email: string,
+  ): Promise<void> {
+    try {
+      const recentCodes =
+        await this.authRepository.countRecentPasswordResetCodes(user.id)
+
+      if (recentCodes >= 3) {
+        this.logger.warn(`Password reset throttled for user ${user.id}`)
+        return
+      }
+
+      const code = randomInt(0, 1_000_000).toString().padStart(6, '0')
+
+      try {
+        await this.notificationService.sendResetCodeByEmail(
+          user.email,
+          code,
+          user.name,
+        )
+      } catch (error) {
+        this.logger.error(
+          `Failed to send password reset email for user ${user.id}`,
+          error instanceof Error ? error.stack : undefined,
+        )
+        return
+      }
+
+      const hashedCode = await hash(code, 8)
+      const expiresAt = addMinutes(new Date(), 15)
+
+      try {
+        await this.authRepository.createPasswordResetCode(
+          user.id,
+          hashedCode,
+          expiresAt,
+        )
+      } catch (error) {
+        this.logger.error(
+          `Failed to persist password reset code for user ${user.id}`,
+          error instanceof Error ? error.stack : undefined,
+        )
+        return
+      }
+
+      if (this.env.get('NODE_ENV') === 'development') {
+        this.logger.debug(`Password reset code for ${email}: ${code}`)
+      }
+    } catch (error) {
+      this.logger.error(
+        `Password reset job failed for user ${user.id}`,
+        error instanceof Error ? error.stack : undefined,
+      )
+    }
   }
 }

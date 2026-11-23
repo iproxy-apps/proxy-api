@@ -1,37 +1,14 @@
-import { Inject, Injectable } from '@nestjs/common'
-import { SESClient, SendEmailCommand } from '@aws-sdk/client-ses'
+import { Injectable } from '@nestjs/common'
 
 import { escapeHtml } from './escape-html'
+import { MailPort } from './mail/mail.port'
 
 @Injectable()
 export class NotificationService {
-  private ses: SESClient
+  constructor(private mail: MailPort) {}
 
-  constructor(
-    @Inject('AWS_REGION') private awsRegion: string,
-    @Inject('AWS_SES_FROM_EMAIL') private fromEmail: string,
-    @Inject('AWS_ACCESS_KEY_ID') private awsAccessKeyId: string,
-    @Inject('AWS_SECRET_ACCESS_KEY') private awsSecretAccessKey: string,
-  ) {
-    const credentials = {
-      accessKeyId: this.awsAccessKeyId,
-      secretAccessKey: this.awsSecretAccessKey,
-    }
-
-    this.ses = new SESClient({ region: this.awsRegion, credentials })
-  }
-
-  async sendEmail(to: string, subject: string, body: string): Promise<void> {
-    const command = new SendEmailCommand({
-      Source: this.fromEmail,
-      Destination: { ToAddresses: [to] },
-      Message: {
-        Subject: { Data: subject, Charset: 'UTF-8' },
-        Body: { Html: { Data: body, Charset: 'UTF-8' } },
-      },
-    })
-
-    await this.ses.send(command)
+  async sendEmail(to: string, subject: string, html: string): Promise<void> {
+    await this.mail.send({ to, subject, html })
   }
 
   async sendResetCodeByEmail(

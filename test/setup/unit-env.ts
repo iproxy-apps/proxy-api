@@ -16,7 +16,9 @@ const defaults: Record<string, string> = {
   STRIPE_CONNECT_RETURN_URL: 'http://localhost:3000/callback',
   AWS_ACCESS_KEY_ID: 'dummy',
   AWS_SECRET_ACCESS_KEY: 'dummy',
-  AWS_SES_FROM_EMAIL: 'test@example.com',
+  MAIL_PROVIDER: 'resend',
+  RESEND_API_KEY: 're_test_dummy',
+  MAIL_FROM: 'Proxy <test@example.com>',
 }
 
 for (const [key, value] of Object.entries(defaults)) {

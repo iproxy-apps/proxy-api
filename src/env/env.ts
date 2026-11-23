@@ -13,9 +13,11 @@ export const envSchema = z
     STRIPE_CONNECT_WEBHOOK_SECRET: z.string().optional(),
     STRIPE_CONNECT_RETURN_URL: z.url(),
     AWS_REGION: z.string().default('us-east-1'),
-    AWS_ACCESS_KEY_ID: z.string(),
-    AWS_SECRET_ACCESS_KEY: z.string(),
-    AWS_SES_FROM_EMAIL: z.string(),
+    AWS_ACCESS_KEY_ID: z.string().optional(),
+    AWS_SECRET_ACCESS_KEY: z.string().optional(),
+    MAIL_PROVIDER: z.enum(['resend', 'ses']).default('resend'),
+    MAIL_FROM: z.string().min(3),
+    RESEND_API_KEY: z.string().startsWith('re_').optional(),
     LOOP_TEST_HOOKS: z.enum(['0', '1']).default('0'),
     // proof storage: S3-compatible (Cloudflare R2) when S3_BUCKET is set, else local disk
     S3_ENDPOINT: z.string().optional(),
@@ -34,6 +36,25 @@ export const envSchema = z
         code: 'custom',
         path: ['STRIPE_CONNECT_RETURN_URL'],
         message: 'must be https in production',
+      })
+    }
+
+    if (env.MAIL_PROVIDER === 'resend' && !env.RESEND_API_KEY) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['RESEND_API_KEY'],
+        message: 'required when MAIL_PROVIDER=resend',
+      })
+    }
+
+    if (
+      env.MAIL_PROVIDER === 'ses' &&
+      (!env.AWS_ACCESS_KEY_ID || !env.AWS_SECRET_ACCESS_KEY)
+    ) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['AWS_ACCESS_KEY_ID'],
+        message: 'required when MAIL_PROVIDER=ses',
       })
     }
   })

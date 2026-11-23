@@ -12,7 +12,8 @@ const baseEnv = {
   STRIPE_SECRET_KEY: 'sk_test_dummy',
   STRIPE_WEBHOOK_SECRET: 'whsec_test_dummy',
   STRIPE_CONNECT_WEBHOOK_SECRET: 'whsec_test_connect',
-  AWS_SES_FROM_EMAIL: 'test@example.com',
+  MAIL_FROM: 'Proxy <test@example.com>',
+  RESEND_API_KEY: 're_test_dummy',
   STRIPE_CONNECT_RETURN_URL: 'http://localhost:3000/callback',
 }
 
@@ -37,6 +38,30 @@ describe('envSchema', () => {
       NODE_ENV: 'development',
       STRIPE_CONNECT_RETURN_URL: 'http://localhost:3000/cb',
     })
+    expect(result.success).toBe(true)
+  })
+
+  it('requires RESEND_API_KEY when MAIL_PROVIDER is resend', () => {
+    const { RESEND_API_KEY: _omitted, ...env } = baseEnv
+    const result = envSchema.safeParse({ ...env, MAIL_PROVIDER: 'resend' })
+    expect(result.success).toBe(false)
+    expect(result.error?.issues.map((i) => i.path.join('.'))).toContain(
+      'RESEND_API_KEY',
+    )
+  })
+
+  it('requires the AWS keys when MAIL_PROVIDER is ses', () => {
+    const { AWS_ACCESS_KEY_ID: _a, AWS_SECRET_ACCESS_KEY: _b, ...env } = baseEnv
+    const result = envSchema.safeParse({ ...env, MAIL_PROVIDER: 'ses' })
+    expect(result.success).toBe(false)
+    expect(result.error?.issues.map((i) => i.path.join('.'))).toContain(
+      'AWS_ACCESS_KEY_ID',
+    )
+  })
+
+  it('accepts ses with AWS keys and no Resend key', () => {
+    const { RESEND_API_KEY: _omitted, ...env } = baseEnv
+    const result = envSchema.safeParse({ ...env, MAIL_PROVIDER: 'ses' })
     expect(result.success).toBe(true)
   })
 })

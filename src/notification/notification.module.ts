@@ -2,7 +2,10 @@ import { DynamicModule, Module } from '@nestjs/common'
 
 import { EnvModule } from 'src/env/env.module'
 import { EnvService } from 'src/env/env.service'
+import { MailPort } from './mail/mail.port'
 import { NotificationService } from './notification.service'
+import { ResendMailAdapter } from './mail/resend-mail.adapter'
+import { SesMailAdapter } from './mail/ses-mail.adapter'
 
 @Module({})
 export class NotificationModule {
@@ -13,24 +16,20 @@ export class NotificationModule {
       providers: [
         NotificationService,
         {
-          provide: 'AWS_REGION',
-          useFactory: (env: EnvService) => env.get('AWS_REGION'),
+          provide: MailPort,
           inject: [EnvService],
-        },
-        {
-          provide: 'AWS_ACCESS_KEY_ID',
-          useFactory: (env: EnvService) => env.get('AWS_ACCESS_KEY_ID'),
-          inject: [EnvService],
-        },
-        {
-          provide: 'AWS_SECRET_ACCESS_KEY',
-          useFactory: (env: EnvService) => env.get('AWS_SECRET_ACCESS_KEY'),
-          inject: [EnvService],
-        },
-        {
-          provide: 'AWS_SES_FROM_EMAIL',
-          useFactory: (env: EnvService) => env.get('AWS_SES_FROM_EMAIL'),
-          inject: [EnvService],
+          useFactory: (env: EnvService): MailPort =>
+            env.get('MAIL_PROVIDER') === 'ses'
+              ? new SesMailAdapter(
+                  env.get('AWS_REGION'),
+                  env.get('AWS_ACCESS_KEY_ID')!,
+                  env.get('AWS_SECRET_ACCESS_KEY')!,
+                  env.get('MAIL_FROM'),
+                )
+              : new ResendMailAdapter(
+                  env.get('RESEND_API_KEY')!,
+                  env.get('MAIL_FROM'),
+                ),
         },
       ],
       exports: [NotificationService],

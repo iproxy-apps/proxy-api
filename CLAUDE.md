@@ -11,7 +11,7 @@ Backend API for a task/service marketplace platform with Stripe-powered payments
 - **Authentication**: JWT RS256 (passport-jwt) with base64-encoded public/private keys; `JwtStrategy.validate` queries `Users.isDeleted` and rejects tokens of removed accounts
 - **Rate limiting**: `@nestjs/throttler` globally (100 req/min default per route+IP, 5 req/min on `/auth/session`, `/auth/create`, `/auth/forgot-password`, `/auth/verify-reset-code`; `TRUST_PROXY` hops honoured for the client IP). `@SkipThrottle()` on the Stripe webhook controller. Bypassed when `NODE_ENV=test`, or when `LOOP_TEST_HOOKS=1` outside production.
 - **Payments**: Stripe SDK, Connect with separate charges and transfers: the client's card is charged off-session when a proxy starts a task (automatic capture), the proxy is paid with a transfer tied to that charge (`source_transaction`) on validate; webhooks reconcile async state
-- **Notifications**: AWS SES (email) and AWS SNS (SMS) via `@aws-sdk/client-ses` and `@aws-sdk/client-sns` — used by `forgot-password` and by `/tasks/start` (e-mail "Confirme seu cartão na Carteira" to the client when the card charge fails)
+- **Notifications**: e-mail through the `MailPort` abstraction (`src/notification/mail`): Resend adapter by default, AWS SES adapter via `MAIL_PROVIDER=ses` — used by `forgot-password` and by `/tasks/start` (e-mail "Confirme seu cartão na Carteira" to the client when the card charge fails)
 - **Proof storage**: `src/storage` (`PROOF_STORAGE`); S3-compatible bucket (Cloudflare R2) when `S3_BUCKET` is set, otherwise local disk
 - **Scheduling**: `@nestjs/schedule`; one cron, `AutoReleaseTasksJob` (see Stripe Connect)
 - **Testing**: Jest (unit) + Testcontainers PostgreSQL (e2e) + supertest
@@ -67,7 +67,7 @@ src/
 ├── storage/                   # ProofStorage (S3/R2 or local disk), StorageModule
 ├── common/                    # money.ts: fee model (computeCharge, toCentavos)
 ├── health/                    # GET /health
-├── notification/              # NotificationService (AWS SES for email, SNS for SMS)
+├── notification/              # NotificationService + mail/ (MailPort: Resend and SES adapters)
 └── modules/
     ├── auth/                  # Authentication, accounts (incl. soft-delete), merchant (Stripe Connect)
     ├── tasks/                 # Full task lifecycle CRUD
@@ -213,13 +213,13 @@ See `.env.example`. Required:
 - `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`
 - `NODE_ENV` (`development`/`production`/`test`, no default; the deploy must set `production`)
 - `STRIPE_CONNECT_RETURN_URL` (Stripe Connect onboarding return URL; `?refresh=1` is appended for the refresh URL; https in production)
-- `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SES_FROM_EMAIL`
+- `MAIL_FROM` (sender, e.g. `Proxy <no-reply@domain>`); `RESEND_API_KEY` (`re_...`, required when `MAIL_PROVIDER=resend`, the default); `AWS_ACCESS_KEY_ID` + `AWS_SECRET_ACCESS_KEY` (required only when `MAIL_PROVIDER=ses`)
 
 Optional:
 - `STRIPE_CONNECT_WEBHOOK_SECRET` (secret of the connected-account webhook endpoint)
 - `S3_BUCKET` (enables S3/R2 proof storage), `S3_ENDPOINT`, `S3_REGION`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY` (the two keys are required once `S3_BUCKET` is set)
 - `PROOF_DIR` (local proof storage directory when `S3_BUCKET` is unset; default `./tmp/proofs`)
-- `PORT` (default 3333), `TRUST_PROXY` (default 0), `LOOP_TEST_HOOKS` (`0`/`1`, default `0`), `AWS_REGION` (default `us-east-1`)
+- `MAIL_PROVIDER` (`resend` default | `ses`), `PORT` (default 3333), `TRUST_PROXY` (default 0), `LOOP_TEST_HOOKS` (`0`/`1`, default `0`), `AWS_REGION` (default `us-east-1`)
 
 ### Local Stripe webhook setup
 

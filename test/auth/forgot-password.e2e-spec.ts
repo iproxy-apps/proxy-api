@@ -20,6 +20,15 @@ describe('POST /auth/forgot-password (e2e)', () => {
     await resetDatabase(ctx.prisma)
   })
 
+  const waitFor = async (condition: () => boolean | Promise<boolean>) => {
+    for (let i = 0; i < 300 && !(await condition()); i++) {
+      await new Promise((resolve) => setTimeout(resolve, 10))
+    }
+    expect(await condition()).toBe(true)
+  }
+
+  const settle = () => new Promise((resolve) => setTimeout(resolve, 100))
+
   const silentMessage = 'Se o email existir, um código de recuperação será enviado.'
 
   it('returns a silent message when the user does not exist', async () => {
@@ -29,6 +38,7 @@ describe('POST /auth/forgot-password (e2e)', () => {
 
     expect(response.status).toBe(200)
     expect(response.body).toMatchObject({ message: silentMessage })
+    await settle()
     expect(ctx.notificationMock.sendResetCodeByEmail).not.toHaveBeenCalled()
 
     const codes = await ctx.prisma.passwordResetCodes.findMany()
@@ -48,6 +58,12 @@ describe('POST /auth/forgot-password (e2e)', () => {
     expect(response.status).toBe(200)
     expect(response.body).toMatchObject({ message: silentMessage })
 
+    await waitFor(
+      async () =>
+        (await ctx.prisma.passwordResetCodes.count({
+          where: { userId: user.id },
+        })) === 1,
+    )
     const codes = await ctx.prisma.passwordResetCodes.findMany({
       where: { userId: user.id },
     })
@@ -84,6 +100,7 @@ describe('POST /auth/forgot-password (e2e)', () => {
 
     expect(response.status).toBe(200)
     expect(response.body).toMatchObject({ message: silentMessage })
+    await settle()
     expect(ctx.notificationMock.sendResetCodeByEmail).not.toHaveBeenCalled()
     expect(await ctx.prisma.passwordResetCodes.count()).toBe(3)
   })
@@ -100,6 +117,10 @@ describe('POST /auth/forgot-password (e2e)', () => {
 
     expect(response.status).toBe(200)
     expect(response.body).toMatchObject({ message: silentMessage })
+    await waitFor(
+      () => ctx.notificationMock.sendResetCodeByEmail.mock.calls.length === 1,
+    )
+    await settle()
     expect(await ctx.prisma.passwordResetCodes.count()).toBe(0)
   })
 
@@ -113,6 +134,12 @@ describe('POST /auth/forgot-password (e2e)', () => {
         .post('/auth/forgot-password')
         .send({ email: 'two@test.io' })
       expect(response.status).toBe(200)
+      await waitFor(
+        async () =>
+          (await ctx.prisma.passwordResetCodes.count({
+            where: { userId: user.id },
+          })) === i + 1,
+      )
     }
 
     const codes = await ctx.prisma.passwordResetCodes.findMany({
