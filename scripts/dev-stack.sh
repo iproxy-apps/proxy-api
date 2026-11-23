@@ -175,7 +175,8 @@ cmd_up() {
   # Job control on: each background job becomes its own process group leader (pid == pgid),
   # so `down` can kill the whole npm -> nest -> node tree.
   set -m
-  LOOP_TEST_HOOKS=1 STRIPE_WEBHOOK_SECRET="$secret" \
+  # DEV_STACK_TEST_HOOKS=0 starts the api without the loop hooks (throttler active, /__test/* 404).
+  LOOP_TEST_HOOKS="${DEV_STACK_TEST_HOOKS:-1}" STRIPE_WEBHOOK_SECRET="$secret" \
     nohup npm run start:dev:api >"$STATE/api.log" 2>&1 &
   api_pid=$!
   nohup stripe listen --forward-to "localhost:${API_PORT}/stripe/webhook" \

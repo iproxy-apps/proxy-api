@@ -216,6 +216,7 @@ Local stack for the autonomous simulator loop (Postgres compose container `proxy
 
 ```bash
 scripts/dev-stack.sh up      # start (exit 0 ok, 1 precondition failed, 2 api timeout)
+DEV_STACK_TEST_HOOKS=0 scripts/dev-stack.sh up   # same, but without the loop hooks (throttler on, /__test/* 404)
 scripts/dev-stack.sh status  # pids, listener, container, hooks
 scripts/dev-stack.sh logs    # tail api + stripe logs
 scripts/dev-stack.sh down    # stop only what `up` started (container is left running)
