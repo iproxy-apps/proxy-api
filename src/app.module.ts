@@ -14,6 +14,7 @@ import { PaymentsModule } from './modules/payments/payments.module'
 import { RatingsModule } from './modules/ratings/ratings.module'
 import { TestHooksModule } from './modules/test-hooks/test-hooks.module'
 import { StripeWebhookModule } from './modules/stripe-webhook/stripe-webhook.module'
+import { HealthModule } from './health/health.module'
 
 @Module({
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
@@ -39,6 +40,7 @@ import { StripeWebhookModule } from './modules/stripe-webhook/stripe-webhook.mod
     RatingsModule,
     StripeWebhookModule,
     TestHooksModule,
+    HealthModule,
   ],
 })
 export class AppModule {}
