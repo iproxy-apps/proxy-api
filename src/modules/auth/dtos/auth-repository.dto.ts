@@ -14,6 +14,7 @@ export interface AuthRepositoryDTO {
   ) => Promise<void>
   hardDeleteUser: (userId: string) => Promise<void>
   findUserStripeCustomerId: (userId: string) => Promise<string | null>
+  fetchPhoneNumberById: (userId: string) => Promise<string | null>
   fetchUserDetailsById: (
     userId: string,
   ) => Promise<FindUserByEmailResult | null>

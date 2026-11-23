@@ -75,6 +75,15 @@ export class AuthRepository implements AuthRepositoryDTO {
     return user?.stripeCustomerId || null
   }
 
+  async fetchPhoneNumberById(userId: string): Promise<string | null> {
+    const user = await this.prisma.users.findUnique({
+      where: { id: userId },
+      select: { phoneNumber: true },
+    })
+
+    return user?.phoneNumber ?? null
+  }
+
   async fetchUserDetailsById(
     userId: string,
   ): Promise<FindUserByEmailResult | null> {

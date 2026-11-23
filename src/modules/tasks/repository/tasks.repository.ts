@@ -106,7 +106,6 @@ export class TasksRepository implements TasksRepositoryDTO {
       where: {
         id: data.taskId,
         status: data.status,
-        ownerId: { isDeleted: false },
       },
     })
   }

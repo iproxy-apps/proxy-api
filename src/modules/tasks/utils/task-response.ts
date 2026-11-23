@@ -1,5 +1,10 @@
 import type { PublicUser, TaskRow } from '../repository/task-select'
-import type { PublicUserResponse, TaskResponse } from '../types'
+import type { PaymentRecord } from 'src/modules/payments/types'
+import type {
+  PaymentResponse,
+  PublicUserResponse,
+  TaskResponse,
+} from '../types'
 
 export const toPublicUser = (user: PublicUser): PublicUserResponse => ({
   ...user,
@@ -16,4 +21,14 @@ export const toTaskResponse = (row: TaskRow): TaskResponse => ({
   chargedAmount: row.chargedAmount?.toNumber() ?? null,
   proxyEarnings: row.proxyEarnings?.toNumber() ?? null,
   ownerId: toPublicUser(row.ownerId),
+})
+
+export const toPaymentResponse = (record: PaymentRecord): PaymentResponse => ({
+  id: record.id,
+  taskId: record.taskId,
+  amount: record.amount.toNumber(),
+  status: record.status,
+  refundId: record.refundId,
+  createdAt: record.createdAt,
+  updatedAt: record.updatedAt,
 })

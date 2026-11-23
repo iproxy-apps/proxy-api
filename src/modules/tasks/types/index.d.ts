@@ -1,4 +1,5 @@
 import type { Prisma } from '@prisma/client'
+import type { PaymentStatus } from 'src/modules/payments/types'
 import type { PublicUser, TaskRow } from '../repository/task-select'
 
 type Decimal = Prisma.Decimal
@@ -96,6 +97,23 @@ export type TaskResponse = Omit<
   chargedAmount: number | null
   proxyEarnings: number | null
   ownerId: PublicUserResponse
+}
+
+export type PaymentResponse = {
+  id: string
+  taskId: string
+  amount: number
+  status: PaymentStatus
+  refundId: string | null
+  createdAt: Date
+  updatedAt: Date
+}
+
+export type TaskDetailResponse = Omit<TaskResponse, 'ownerId'> & {
+  ownerId: PublicUserResponse & { phoneNumber?: string | null }
+  executorId: string | null
+  executor: (PublicUserResponse & { phoneNumber?: string | null }) | null
+  payment: PaymentResponse | null
 }
 
 export type CreateTaskResult = {
