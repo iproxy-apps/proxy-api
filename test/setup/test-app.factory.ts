@@ -36,7 +36,7 @@ export const createTestApp = async (
 
   const app = moduleRef.createNestApplication({ logger: false, rawBody: true })
   configureApp(app, { trustProxy: options.trustProxy ?? 0 })
-  await app.init()
+  await app.listen(0)
 
   const prisma = app.get(PrismaService)
 
