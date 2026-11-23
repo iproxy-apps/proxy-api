@@ -51,10 +51,11 @@ export class ValidateTaskService {
       throw new AppException(errorDictionary.tasks.proxyAccountNotReady)
     }
 
+    const offeredPrice = Number(taskDetails.offeredPrice)
     // offeredPrice - stripe fee (3.99% + R$ 0.39) - platform fee (20%) = proxy net
-    const stripeFee = taskDetails.offeredPrice * 0.0399 + 0.39
-    const platformFee = taskDetails.offeredPrice * 0.2
-    const proxyEarnings = taskDetails.offeredPrice - stripeFee - platformFee
+    const stripeFee = offeredPrice * 0.0399 + 0.39
+    const platformFee = offeredPrice * 0.2
+    const proxyEarnings = offeredPrice - stripeFee - platformFee
 
     let transferId: string
     try {

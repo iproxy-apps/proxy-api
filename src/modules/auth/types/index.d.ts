@@ -1,4 +1,4 @@
-import { Prisma } from '@prisma/client'
+import type { DocumentType, Prisma } from '@prisma/client'
 
 type Decimal = Prisma.Decimal
 

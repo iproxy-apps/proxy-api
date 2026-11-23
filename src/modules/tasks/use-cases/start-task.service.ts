@@ -55,9 +55,10 @@ export class StartTaskService {
     // charge the task owner; payment record is created as pending before
     // confirmation so webhooks can later flip it to succeeded/failed
     try {
+      const offeredPrice = Number(taskDetails.offeredPrice)
       const paymentIntent = await this.stripeService.createPaymentIntent({
         savedCard,
-        amount: taskDetails.offeredPrice * 100,
+        amount: offeredPrice * 100,
         customer: String(taskDetails.ownerId.stripeCustomerId),
       })
 
@@ -67,7 +68,7 @@ export class StartTaskService {
 
       await this.createPaymentRecordService.execute({
         taskId,
-        amount: taskDetails.offeredPrice,
+        amount: offeredPrice,
         paymentIntent: paymentIntent.id,
       })
 

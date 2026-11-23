@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client'
 import { AppException } from 'src/exception/app.exception'
 import { StripeService } from 'src/stripe/stripe.service'
 import { ValidateTaskService } from './validate-task.service'
@@ -140,7 +141,7 @@ describe('ValidateTaskService', () => {
 
   it('throws transferFailed and skips state changes when the transfer fails', async () => {
     tasksRepository.fetchTaskById.mockResolvedValue(
-      makeTaskDetails({ offeredPrice: 100 }),
+      makeTaskDetails({ offeredPrice: new Prisma.Decimal(100) }),
     )
     tasksRepository.fetchTaskMappingByTaskId.mockResolvedValue(makeTaskMapping())
     stripeService.createTransfer.mockRejectedValue(new Error('stripe down'))
@@ -159,7 +160,7 @@ describe('ValidateTaskService', () => {
   it('creates a transfer, persists the transferId and pays the executor on the happy path', async () => {
     const offeredPrice = 100
     tasksRepository.fetchTaskById.mockResolvedValue(
-      makeTaskDetails({ offeredPrice }),
+      makeTaskDetails({ offeredPrice: new Prisma.Decimal(offeredPrice) }),
     )
     tasksRepository.fetchTaskMappingByTaskId.mockResolvedValue(makeTaskMapping())
 

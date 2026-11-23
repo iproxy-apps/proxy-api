@@ -20,7 +20,7 @@ const config: Config = {
           emitDecoratorMetadata: true,
           strict: true,
           strictNullChecks: true,
-          noImplicitAny: false,
+          noImplicitAny: true,
           skipLibCheck: true,
           baseUrl: '.',
           paths: { 'src/*': ['src/*'] },

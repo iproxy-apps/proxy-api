@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client'
 import type { FetchTasksResult, FetchTaskUserMappingQueryData } from '../types'
 
 export const makeTaskDetails = (
@@ -5,11 +6,11 @@ export const makeTaskDetails = (
 ): FetchTasksResult => ({
   id: 'task-1',
   title: 'title',
-  locationLat: 0,
-  locationLng: 0,
+  locationLat: new Prisma.Decimal(0),
+  locationLng: new Prisma.Decimal(0),
   startedAt: null,
   owner: 'client-1',
-  offeredPrice: 100,
+  offeredPrice: new Prisma.Decimal(100),
   proxyEarnings: null,
   platformFee: null,
   proofImageUrl: null,
@@ -18,7 +19,7 @@ export const makeTaskDetails = (
   locationAddress: 'addr',
   status: 'available',
   ownerId: {
-    rating: 5,
+    rating: new Prisma.Decimal(5),
     name: 'name',
     id: 'client-1',
     email: 'email',

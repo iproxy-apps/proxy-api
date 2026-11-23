@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client'
 import { StartTaskService } from './start-task.service'
 import { StripeService } from 'src/stripe/stripe.service'
 import { makeTaskDetails } from '../test-utils/task.factory'
@@ -34,9 +35,9 @@ type CreatePaymentRecordServiceMock = jest.Mocked<
 const makeTaskWithOwner = () =>
   makeTaskDetails({
     owner: 'client-1',
-    offeredPrice: 100,
+    offeredPrice: new Prisma.Decimal(100),
     ownerId: {
-      rating: 5,
+      rating: new Prisma.Decimal(5),
       name: 'Owner',
       id: 'client-1',
       avatarUrl: null,

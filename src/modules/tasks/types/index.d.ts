@@ -1,3 +1,7 @@
+import type { Prisma } from '@prisma/client'
+
+type Decimal = Prisma.Decimal
+
 export type TaskStatus =
   | 'available'
   | 'accepted'

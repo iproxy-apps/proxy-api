@@ -79,7 +79,7 @@ describe('HandlePayoutFailedService', () => {
     tasksRepository.fetchTaskByTransferId.mockResolvedValue(
       makeTaskDetails({
         id: 'task-1',
-        offeredPrice: 100,
+        offeredPrice: new Prisma.Decimal(100),
         proxyEarnings: new Prisma.Decimal(75.62),
         status: 'completed',
       }),
