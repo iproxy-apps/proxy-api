@@ -546,6 +546,8 @@ describe('POST /stripe/webhook (e2e)', () => {
         locationLat: 0,
         locationLng: 0,
         locationAddress: 'addr',
+        city: 'São Paulo',
+        state: 'SP',
         offeredPrice: 100,
         proxyEarnings: 75.62,
         platformFee: 20,

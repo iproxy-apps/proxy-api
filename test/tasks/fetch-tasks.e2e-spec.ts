@@ -55,7 +55,11 @@ describe('GET /tasks/fetch (e2e)', () => {
     const owner = await createUser(ctx.app, ctx.prisma)
 
     await createTask(ctx.prisma, owner.id, { locationAddress: 'São Paulo' })
-    await createTask(ctx.prisma, owner.id, { locationAddress: 'Rio' })
+    await createTask(ctx.prisma, owner.id, {
+      locationAddress: 'Rio',
+      city: 'Rio de Janeiro',
+      state: 'RJ',
+    })
     // Not available → excluded
     await createTask(ctx.prisma, owner.id, {
       locationAddress: 'São Paulo',

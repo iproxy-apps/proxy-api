@@ -26,6 +26,8 @@ export const taskSelect = {
   title: true,
   description: true,
   locationAddress: true,
+  city: true,
+  state: true,
   locationLat: true,
   locationLng: true,
   offeredPrice: true,
@@ -70,6 +72,8 @@ export class TasksRepository implements TasksRepositoryDTO {
       locationLat,
       locationLng,
       locationAddress,
+      city,
+      state,
     } = data
     const [task] = await this.prisma.$transaction([
       this.prisma.tasks.create({
@@ -85,6 +89,8 @@ export class TasksRepository implements TasksRepositoryDTO {
           chargedAmount,
           proxyEarnings,
           locationAddress,
+          city,
+          state,
         },
         select: { id: true },
       }),

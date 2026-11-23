@@ -27,8 +27,10 @@ export type CreateTaskData = {
   offeredPrice: number
   city: string
   state: string
-  street: string
-  zipCode: string
+  street?: string
+  zipCode?: string
+  complement?: string
+  formattedAddress?: string
   locationLat: number
   locationLng: number
 
@@ -48,6 +50,8 @@ export type InsertTaskData = {
   chargedAmount: Decimal
   proxyEarnings: Decimal
   locationAddress: string
+  city: string
+  state: string
 }
 
 export type FetchTasksData = {
@@ -79,6 +83,8 @@ export type FetchTasksResult = {
   proofImageUrl: string | null
   id: string
   locationAddress: string
+  city: string
+  state: string
   status: TaskStatus
   createdAt: Date
   startedAt: Date | null

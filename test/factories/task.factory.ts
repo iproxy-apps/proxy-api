@@ -7,6 +7,8 @@ type CreateTaskOverrides = {
   locationLat?: number
   locationLng?: number
   locationAddress?: string
+  city?: string
+  state?: string
   offeredPrice?: number
   proxyEarnings?: number | null
   platformFee?: number | null
@@ -43,6 +45,8 @@ export const createTask = async (
       locationLat: overrides.locationLat ?? 0,
       locationLng: overrides.locationLng ?? 0,
       locationAddress: overrides.locationAddress ?? 'São Paulo',
+      city: overrides.city ?? 'São Paulo',
+      state: overrides.state ?? 'SP',
       offeredPrice: overrides.offeredPrice ?? 50,
       proxyEarnings:
         overrides.proxyEarnings === undefined

@@ -211,4 +211,136 @@ describe('POST /tasks/create (e2e)', () => {
     })
     expect(updatedUser?.totalTasksCreated).toBe(3)
   })
+
+  const paulista = {
+    formattedAddress:
+      'Av. Paulista, 1578 - Bela Vista, São Paulo - SP, 01310-200, Brasil',
+    city: 'São Paulo',
+    state: 'SP',
+    locationLat: -23.5614,
+    locationLng: -46.6559,
+  }
+
+  const withAddress = (address: object) => ({ ...taskPayload, address })
+
+  it('stores the canonical city/state and the formatted address', async () => {
+    const user = await createUser(ctx.app, ctx.prisma)
+    await seedCard(user.id)
+
+    const response = await post(
+      user.token,
+      withAddress({ ...paulista, city: 'sao paulo', state: 'sp' }),
+    )
+
+    expect(response.status).toBe(201)
+    const t = await ctx.prisma.tasks.findUniqueOrThrow({
+      where: { id: response.body.id },
+    })
+    expect(t.city).toBe('São Paulo')
+    expect(t.state).toBe('SP')
+    expect(t.locationAddress).toBe(paulista.formattedAddress)
+  })
+
+  it('appends the complement to the stored address', async () => {
+    const user = await createUser(ctx.app, ctx.prisma)
+    await seedCard(user.id)
+
+    const response = await post(
+      user.token,
+      withAddress({ ...paulista, complement: 'apto 42' }),
+    )
+
+    expect(response.status).toBe(201)
+    const t = await ctx.prisma.tasks.findUniqueOrThrow({
+      where: { id: response.body.id },
+    })
+    expect(t.locationAddress).toBe(`${paulista.formattedAddress} — apto 42`)
+  })
+
+  it('rejects a city outside the served list with CITY_NOT_SERVED', async () => {
+    const user = await createUser(ctx.app, ctx.prisma)
+
+    const response = await post(
+      user.token,
+      withAddress({ ...paulista, city: 'Curitiba', state: 'PR' }),
+    )
+
+    expect(response.status).toBe(400)
+    expect(response.body).toMatchObject({
+      errorCode: 'CITY_NOT_SERVED',
+      message:
+        'Ainda não atendemos nessa cidade. Por enquanto estamos em São Paulo, Rio de Janeiro e Belo Horizonte.',
+    })
+    expect(await ctx.prisma.tasks.count()).toBe(0)
+    Object.values(ctx.stripeMock).forEach((fn) => {
+      if (jest.isMockFunction(fn)) expect(fn).not.toHaveBeenCalled()
+    })
+  })
+
+  it('rejects a served city name with the wrong state', async () => {
+    const user = await createUser(ctx.app, ctx.prisma)
+    await seedCard(user.id)
+
+    const response = await post(
+      user.token,
+      withAddress({ ...paulista, state: 'RJ' }),
+    )
+
+    expect(response.status).toBe(400)
+    expect(response.body).toMatchObject({ errorCode: 'CITY_NOT_SERVED' })
+  })
+
+  it('still accepts the legacy street/zipCode body', async () => {
+    const user = await createUser(ctx.app, ctx.prisma)
+    await seedCard(user.id)
+
+    const response = await post(
+      user.token,
+      withAddress({
+        street: 'Rua A, 10',
+        zipCode: '30130-005',
+        city: 'Belo Horizonte',
+        state: 'mg',
+        locationLat: -19.92,
+        locationLng: -43.94,
+      }),
+    )
+
+    expect(response.status).toBe(201)
+    const t = await ctx.prisma.tasks.findUniqueOrThrow({
+      where: { id: response.body.id },
+    })
+    expect(t.locationAddress).toBe('Rua A, 10, Belo Horizonte - MG, 30130-005')
+  })
+
+  it('rejects an address with neither formattedAddress nor street + zipCode', async () => {
+    const user = await createUser(ctx.app, ctx.prisma)
+    await seedCard(user.id)
+
+    const response = await post(
+      user.token,
+      withAddress({
+        city: 'São Paulo',
+        state: 'SP',
+        locationLat: -23.55,
+        locationLng: -46.63,
+      }),
+    )
+
+    expect(response.status).toBe(400)
+    expect(await ctx.prisma.tasks.count()).toBe(0)
+  })
+
+  it('rejects unknown address keys', async () => {
+    const user = await createUser(ctx.app, ctx.prisma)
+    await seedCard(user.id)
+
+    const response = await post(
+      user.token,
+      withAddress({ ...paulista, placeId: 'ChIJ' }),
+    )
+
+    expect(response.status).toBe(400)
+    expect(await ctx.prisma.tasks.count()).toBe(0)
+  })
 })

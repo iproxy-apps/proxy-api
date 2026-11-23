@@ -12,14 +12,21 @@ import type { SessionPayload } from 'src/modules/auth/utils/jwt.strategy'
 const createTaskBodySchema = z.object({
   title: z.string().trim().min(3).max(80),
   description: z.string().trim().min(10).max(1000),
-  address: z.object({
-    city: z.string().trim().min(1),
-    state: z.string().trim().length(2),
-    street: z.string().trim().min(1),
-    zipCode: z.string().trim().min(8).max(9),
-    locationLat: z.number().min(-90).max(90),
-    locationLng: z.number().min(-180).max(180),
-  }),
+  address: z
+    .object({
+      formattedAddress: z.string().trim().min(5).max(300).optional(),
+      complement: z.string().trim().max(120).optional(),
+      city: z.string().trim().min(1).max(80),
+      state: z.string().trim().min(2).max(40),
+      street: z.string().trim().min(1).max(200).optional(), // legacy body of the pre-P3-T14b app
+      zipCode: z.string().trim().min(8).max(9).optional(), // legacy
+      locationLat: z.number().min(-90).max(90),
+      locationLng: z.number().min(-180).max(180),
+    })
+    .strict()
+    .refine((a) => !!a.formattedAddress || (!!a.street && !!a.zipCode), {
+      message: 'Informe o endereço.',
+    }),
   pricing: z.object({
     offeredPrice: z
       .number()
@@ -51,7 +58,16 @@ export class CreateTaskController {
       title,
       description,
       pricing: { offeredPrice },
-      address: { city, state, street, zipCode, locationLat, locationLng },
+      address: {
+        city,
+        state,
+        street,
+        zipCode,
+        complement,
+        locationLat,
+        locationLng,
+        formattedAddress,
+      },
       cardDetails,
     } = body
 
@@ -61,6 +77,8 @@ export class CreateTaskController {
       state,
       street,
       zipCode,
+      complement,
+      formattedAddress,
       locationLat,
       locationLng,
       description,

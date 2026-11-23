@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common'
 
 import { computeCharge } from 'src/common/money'
+import { matchServedCity } from 'src/common/served-cities'
 import { AppException } from 'src/exception/app.exception'
 import { TasksRepository } from '../repository/tasks.repository'
 import { SaveCardService } from 'src/modules/cards/use-cases/save-card.service'
@@ -28,6 +29,8 @@ export class CreateTaskService {
       userId,
       street,
       zipCode,
+      complement,
+      formattedAddress,
       description,
       locationLat,
       locationLng,
@@ -35,6 +38,12 @@ export class CreateTaskService {
       savedCard,
       paymentMethodId,
     } = data
+
+    const served = matchServedCity(city, state)
+
+    if (!served) {
+      throw new AppException(errorDictionary.tasks.cityNotServed)
+    }
 
     const user = await this.fetchUserDetailsService.execute(userId)
 
@@ -55,7 +64,11 @@ export class CreateTaskService {
     const { platformFee, stripeFee, chargedAmount, proxyEarnings, ...rest } =
       computeCharge(offeredPrice)
 
-    const locationAddress = `${street}, ${city} - ${state}, ${zipCode}`
+    const locationAddress = formattedAddress
+      ? complement
+        ? `${formattedAddress} — ${complement}`
+        : formattedAddress
+      : `${street}, ${served.city} - ${served.state}, ${zipCode}`
 
     const task = await this.tasksRepository.createTask({
       title,
@@ -64,6 +77,8 @@ export class CreateTaskService {
       locationLat,
       locationLng,
       locationAddress,
+      city: served.city,
+      state: served.state,
       offeredPrice: rest.offeredPrice,
       platformFee,
       stripeFee,

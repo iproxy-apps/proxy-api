@@ -57,6 +57,8 @@ describe('GET /auth/transaction-history (e2e)', () => {
         locationLat: 0,
         locationLng: 0,
         locationAddress: 'addr',
+        city: 'São Paulo',
+        state: 'SP',
         offeredPrice: 200,
       },
     })
@@ -70,6 +72,8 @@ describe('GET /auth/transaction-history (e2e)', () => {
         locationLat: 0,
         locationLng: 0,
         locationAddress: 'addr',
+        city: 'São Paulo',
+        state: 'SP',
         offeredPrice: 100,
         status: 'completed',
         completedAt: new Date(),

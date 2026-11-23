@@ -124,6 +124,13 @@ export const errorDictionary = {
   },
 
   tasks: {
+    cityNotServed: {
+      message:
+        'Ainda não atendemos nessa cidade. Por enquanto estamos em São Paulo, Rio de Janeiro e Belo Horizonte.',
+      statusCode: HttpStatus.BAD_REQUEST,
+      errorCode: 'CITY_NOT_SERVED',
+    } as const,
+
     taskNotFound: {
       message: 'Tarefa não encontrada.',
       statusCode: HttpStatus.NOT_FOUND,

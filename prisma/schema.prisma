@@ -77,6 +77,8 @@ model Tasks {
   locationLat     Decimal @db.Decimal(9, 6)
   locationLng     Decimal @db.Decimal(9, 6)
   locationAddress String
+  city            String
+  state           String
 
   offeredPrice  Decimal  @db.Decimal(10, 2)
   proxyEarnings Decimal? @db.Decimal(10, 2)
@@ -103,6 +105,7 @@ model Tasks {
   payments         Payments[]
   rating           Ratings?
 
+  @@index([city, status, createdAt])
   @@map("tasks")
 }
 

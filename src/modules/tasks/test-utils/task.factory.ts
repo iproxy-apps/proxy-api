@@ -19,6 +19,8 @@ export const makeTaskDetails = (
   description: 'desc',
   createdAt: new Date(),
   locationAddress: 'addr',
+  city: 'São Paulo',
+  state: 'SP',
   status: 'available',
   ownerId: {
     rating: new Prisma.Decimal(5),
