@@ -341,14 +341,4 @@ export class AuthRepository implements AuthRepositoryDTO {
       })
     })
   }
-
-  async updateUserPassword(
-    userId: string,
-    hashedPassword: string,
-  ): Promise<void> {
-    await this.prisma.users.update({
-      where: { id: userId },
-      data: { password: hashedPassword },
-    })
-  }
 }

@@ -190,7 +190,7 @@ describe('StartTaskService', () => {
     expect(tasksRepository.claimTask).not.toHaveBeenCalled()
   })
 
-  it('throws userNotProxy when the user is not a PROXY or is not onboarded', async () => {
+  it('throws userNotProxy for a non-PROXY and accountNotReadyToStart for an un-onboarded PROXY', async () => {
     happyPath()
     fetchUserDetailsService.execute.mockResolvedValue(
       makeUser({ userType: 'CLIENT' }),
@@ -205,7 +205,7 @@ describe('StartTaskService', () => {
     )
     await expectCode(
       service.execute(args),
-      errorDictionary.user.userNotProxy.errorCode,
+      errorDictionary.user.accountNotReadyToStart.errorCode,
     )
     expect(tasksRepository.claimTask).not.toHaveBeenCalled()
   })

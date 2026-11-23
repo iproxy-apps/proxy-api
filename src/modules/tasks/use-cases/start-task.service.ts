@@ -57,8 +57,11 @@ export class StartTaskService {
 
     // 3. proxy with completed merchant onboarding
     const userDetails = await this.fetchUserDetailsService.execute(userId)
-    if (userDetails.userType !== 'PROXY' || !userDetails.stripeAccountReady) {
+    if (userDetails.userType !== 'PROXY') {
       throw new AppException(errorDictionary.user.userNotProxy)
+    }
+    if (!userDetails.stripeAccountReady) {
+      throw new AppException(errorDictionary.user.accountNotReadyToStart)
     }
 
     // this proxy already holds the live claim: a replay must not need the card

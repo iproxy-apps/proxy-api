@@ -57,6 +57,13 @@ export const errorDictionary = {
       errorCode: 'USER_NOT_PROXY',
     } as const,
 
+    accountNotReadyToStart: {
+      message:
+        'Conclua a configuração da sua conta na Carteira para aceitar tarefas.',
+      statusCode: HttpStatus.CONFLICT,
+      errorCode: 'PROXY_ACCOUNT_NOT_READY',
+    } as const,
+
     merchantAccountCreationFailed: {
       message: 'Falha ao criar a conta do comerciante.',
       statusCode: HttpStatus.BAD_REQUEST,

@@ -90,8 +90,12 @@ describe('POST /tasks/start (e2e)', () => {
       .set('Authorization', `Bearer ${proxy.token}`)
       .send({ taskId: task.id })
 
-    expect(response.status).toBe(403)
-    expect(response.body).toMatchObject({ errorCode: 'USER_NOT_PROXY' })
+    expect(response.status).toBe(409)
+    expect(response.body).toMatchObject({
+      errorCode: 'PROXY_ACCOUNT_NOT_READY',
+      message:
+        'Conclua a configuração da sua conta na Carteira para aceitar tarefas.',
+    })
   })
 
   const seed = async (
