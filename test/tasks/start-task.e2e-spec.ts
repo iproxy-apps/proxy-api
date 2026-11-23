@@ -183,4 +183,15 @@ describe('POST /tasks/start (e2e)', () => {
     })
     expect(payment?.status).toBe('pending')
   })
+
+  it('returns 400 VALIDATION_FAILED for a non-UUID taskId', async () => {
+    const proxy = await createUser(ctx.app, ctx.prisma, { userType: 'PROXY' })
+    const response = await request(ctx.app.getHttpServer())
+      .post('/tasks/start')
+      .set('Authorization', `Bearer ${proxy.token}`)
+      .send({ taskId: 'not-a-uuid' })
+    expect(response.status).toBe(400)
+    expect(response.body).toMatchObject({ errorCode: 'VALIDATION_FAILED' })
+    expect(ctx.stripeMock.createPaymentIntent).not.toHaveBeenCalled()
+  })
 })

@@ -5,7 +5,9 @@ import {
   UseGuards,
   Controller,
 } from '@nestjs/common'
+import z from 'zod'
 
+import { ZodValidationPipe } from 'src/pipes/zod-validation.pipe'
 import { User } from 'src/modules/auth/utils/current-user-decorator'
 import { JwtAuthGuard } from 'src/modules/auth/utils/jwt-auth.guard'
 import { DeleteUserCardService } from '../use-cases/delete-user-card.service'
@@ -19,7 +21,10 @@ export class DeleteUserCardController {
 
   @Delete(':id')
   @HttpCode(204)
-  async handle(@Param('id') id: string, @User() user: SessionPayload) {
+  async handle(
+    @Param('id', new ZodValidationPipe(z.uuid())) id: string,
+    @User() user: SessionPayload,
+  ) {
     await this.deleteUserCardService.execute({
       cardId: id,
       userId: user.sub,

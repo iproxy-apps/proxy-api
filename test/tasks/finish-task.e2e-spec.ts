@@ -112,4 +112,13 @@ describe('POST /tasks/finish (e2e)', () => {
     const stored = await ctx.prisma.tasks.findUnique({ where: { id: task.id } })
     expect(stored?.status).toBe('in_progress')
   })
+
+  it('returns 400 VALIDATION_FAILED for a non-UUID proof id', async () => {
+    const user = await createUser(ctx.app, ctx.prisma)
+    const response = await request(ctx.app.getHttpServer())
+      .get('/tasks/not-a-uuid/proof')
+      .set('Authorization', `Bearer ${user.token}`)
+    expect(response.status).toBe(400)
+    expect(response.body).toMatchObject({ errorCode: 'VALIDATION_FAILED' })
+  })
 })

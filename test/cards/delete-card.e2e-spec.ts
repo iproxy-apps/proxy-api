@@ -114,4 +114,14 @@ describe('DELETE /card/:id (e2e)', () => {
     expect(fetched.status).toBe(404)
     expect(fetched.body).toMatchObject({ errorCode: 'NO_SAVED_CARD_FOUND' })
   })
+
+  it('returns 400 VALIDATION_FAILED for a non-UUID card id', async () => {
+    const user = await createUser(ctx.app, ctx.prisma)
+    const response = await request(ctx.app.getHttpServer())
+      .delete('/card/not-a-uuid')
+      .set('Authorization', `Bearer ${user.token}`)
+    expect(response.status).toBe(400)
+    expect(response.body).toMatchObject({ errorCode: 'VALIDATION_FAILED' })
+    expect(ctx.stripeMock.detachPaymentMethod).not.toHaveBeenCalled()
+  })
 })

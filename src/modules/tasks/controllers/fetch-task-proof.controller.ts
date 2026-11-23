@@ -7,7 +7,9 @@ import {
   StreamableFile,
   UseGuards,
 } from '@nestjs/common'
+import z from 'zod'
 
+import { ZodValidationPipe } from 'src/pipes/zod-validation.pipe'
 import { User } from 'src/modules/auth/utils/current-user-decorator'
 import { JwtAuthGuard } from 'src/modules/auth/utils/jwt-auth.guard'
 import { FetchTaskProofService } from '../use-cases/fetch-task-proof.service'
@@ -22,7 +24,7 @@ export class FetchTaskProofController {
   @Get(':id/proof')
   @Header('Cache-Control', 'private, max-age=300')
   async handle(
-    @Param('id') id: string,
+    @Param('id', new ZodValidationPipe(z.uuid())) id: string,
     @User() user: SessionPayload,
   ): Promise<StreamableFile> {
     const { absolutePath, mimeType } = await this.fetchTaskProofService.execute(

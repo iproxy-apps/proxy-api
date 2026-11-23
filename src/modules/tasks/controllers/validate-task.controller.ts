@@ -9,7 +9,7 @@ import { ValidateTaskService } from '../use-cases/validate-task.service'
 import type { SessionPayload } from 'src/modules/auth/utils/jwt.strategy'
 
 const validateTaskBodySchema = z.object({
-  taskId: z.string(),
+  taskId: z.uuid(),
   rating: z.number().int().min(1).max(5).optional(),
   comment: z.string().trim().min(1).max(500).optional(),
 })

@@ -9,7 +9,7 @@ import { User } from 'src/modules/auth/utils/current-user-decorator'
 import type { SessionPayload } from 'src/modules/auth/utils/jwt.strategy'
 
 const startTaskBodySchema = z.object({
-  taskId: z.string(),
+  taskId: z.uuid(),
 })
 
 type StartTaskBodySchema = z.infer<typeof startTaskBodySchema>

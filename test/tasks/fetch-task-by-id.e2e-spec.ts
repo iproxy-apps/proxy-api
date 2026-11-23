@@ -146,4 +146,13 @@ describe('GET /tasks/:id (e2e)', () => {
       owner: owner.id,
     })
   })
+
+  it('returns 400 VALIDATION_FAILED for a non-UUID id', async () => {
+    const user = await createUser(ctx.app, ctx.prisma)
+    const response = await request(ctx.app.getHttpServer())
+      .get('/tasks/not-a-uuid')
+      .set('Authorization', `Bearer ${user.token}`)
+    expect(response.status).toBe(400)
+    expect(response.body).toMatchObject({ errorCode: 'VALIDATION_FAILED' })
+  })
 })

@@ -9,7 +9,7 @@ import { CancelTaskService } from '../use-cases/cancel-task.service'
 import type { SessionPayload } from 'src/modules/auth/utils/jwt.strategy'
 
 const cancelTaskBodySchema = z.object({
-  taskId: z.string(),
+  taskId: z.uuid(),
 })
 
 type CancelTaskBodySchema = z.infer<typeof cancelTaskBodySchema>
