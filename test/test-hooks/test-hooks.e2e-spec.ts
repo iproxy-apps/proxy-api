@@ -35,11 +35,15 @@ describe('/__test hooks (e2e)', () => {
 
   it('refuses a non-local DATABASE_URL', async () => {
     const original = process.env.DATABASE_URL
-    process.env.DATABASE_URL = 'postgresql://u:p@db.example.com:5432/proxy'
     await createUser(ctx.app, ctx.prisma)
 
-    const res = await request(ctx.app.getHttpServer()).post('/__test/reset')
-    process.env.DATABASE_URL = original
+    let res: request.Response
+    try {
+      process.env.DATABASE_URL = 'postgresql://u:p@db.example.com:5432/proxy'
+      res = await request(ctx.app.getHttpServer()).post('/__test/reset')
+    } finally {
+      process.env.DATABASE_URL = original
+    }
 
     expect(res.status).toBe(403)
     expect(res.body).toMatchObject({ errorCode: 'TEST_HOOKS_FORBIDDEN' })
@@ -55,6 +59,15 @@ describe('/__test hooks (e2e)', () => {
     expect(await ctx.prisma.users.count()).toBe(0)
   })
 
+  it('seed-user with an empty body is a 400 (the dev-stack.sh probe)', async () => {
+    const res = await request(ctx.app.getHttpServer())
+      .post('/__test/seed-user')
+      .send({})
+
+    expect(res.status).toBe(400)
+    expect(await ctx.prisma.users.count()).toBe(0)
+  })
+
   it('seed-user creates a user that can sign in', async () => {
     const seed = await request(ctx.app.getHttpServer())
       .post('/__test/seed-user')
@@ -67,11 +80,53 @@ describe('/__test hooks (e2e)', () => {
     expect(seed.status).toBe(201)
     expect(seed.body).toMatchObject({ email: 'cliente@loop.test' })
 
+    const row = await ctx.prisma.users.findUniqueOrThrow({
+      where: { email: 'cliente@loop.test' },
+    })
+    expect(ctx.stripeMock.searchCustomer).toHaveBeenCalledWith(
+      'cliente@loop.test',
+    )
+    expect(row.stripeCustomerId).toBe('cus_test_123')
+
     const session = await request(ctx.app.getHttpServer())
       .post('/auth/session')
       .send({ email: 'cliente@loop.test', password: 'senha12345' })
 
     expect(session.status).toBe(200)
+  })
+
+  it('seed-user reuses an existing Stripe customer for the email', async () => {
+    ctx.stripeMock.searchCustomer.mockResolvedValueOnce({
+      data: [{ id: 'cus_existing_456' }],
+    } as never)
+
+    const seed = await request(ctx.app.getHttpServer())
+      .post('/__test/seed-user')
+      .send({
+        email: 'proxy@loop.test',
+        password: 'senha12345',
+        userType: 'PROXY',
+      })
+
+    expect(seed.status).toBe(201)
+    const row = await ctx.prisma.users.findUniqueOrThrow({
+      where: { email: 'proxy@loop.test' },
+    })
+    expect(row.stripeCustomerId).toBe('cus_existing_456')
+  })
+
+  it('seed-user refuses stripeAccountReady without an account id', async () => {
+    const res = await request(ctx.app.getHttpServer())
+      .post('/__test/seed-user')
+      .send({
+        email: 'ready@loop.test',
+        password: 'senha12345',
+        userType: 'PROXY',
+        stripeAccountReady: true,
+      })
+
+    expect(res.status).toBe(400)
+    expect(await ctx.prisma.users.count()).toBe(0)
   })
 
   it('seed-user rejects a duplicate email with 409', async () => {
@@ -89,10 +144,54 @@ describe('/__test hooks (e2e)', () => {
     expect(res.status).toBe(409)
   })
 
-  it('mark-account-ready flips the flag and sets an account id', async () => {
+  it('mark-account-ready flips the flag and stores an explicit account id', async () => {
     const user = await createUser(ctx.app, ctx.prisma, {
       userType: 'PROXY',
       stripeAccountReady: false,
+    })
+
+    const res = await request(ctx.app.getHttpServer())
+      .post('/__test/mark-account-ready')
+      .send({ email: user.email, stripeAccountId: 'acct_explicit_1' })
+
+    expect(res.status).toBe(204)
+
+    const row = await ctx.prisma.users.findUniqueOrThrow({
+      where: { email: user.email },
+    })
+    expect(row).toMatchObject({
+      stripeAccountReady: true,
+      stripeAccountId: 'acct_explicit_1',
+    })
+  })
+
+  it('mark-account-ready without an id refuses a user with no account', async () => {
+    const user = await createUser(ctx.app, ctx.prisma, {
+      userType: 'PROXY',
+      stripeAccountReady: false,
+    })
+
+    const res = await request(ctx.app.getHttpServer())
+      .post('/__test/mark-account-ready')
+      .send({ email: user.email })
+
+    expect(res.status).toBe(400)
+    expect(res.body).toMatchObject({ errorCode: 'ACCOUNT_ID_REQUIRED' })
+
+    const row = await ctx.prisma.users.findUniqueOrThrow({
+      where: { email: user.email },
+    })
+    expect(row).toMatchObject({
+      stripeAccountReady: false,
+      stripeAccountId: null,
+    })
+  })
+
+  it('mark-account-ready without an id keeps an existing account id', async () => {
+    const user = await createUser(ctx.app, ctx.prisma, {
+      userType: 'PROXY',
+      stripeAccountReady: false,
+      stripeAccountId: 'acct_real_connect',
     })
 
     const res = await request(ctx.app.getHttpServer())
@@ -106,7 +205,7 @@ describe('/__test hooks (e2e)', () => {
     })
     expect(row).toMatchObject({
       stripeAccountReady: true,
-      stripeAccountId: 'acct_test_ready',
+      stripeAccountId: 'acct_real_connect',
     })
   })
 

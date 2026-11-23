@@ -17,7 +17,7 @@ import { TestHooksGuard } from '../test-hooks.guard'
 
 const markAccountReadyBodySchema = z.object({
   email: z.email(),
-  stripeAccountId: z.string().default('acct_test_ready'),
+  stripeAccountId: z.string().optional(),
 })
 
 type MarkAccountReadyBodySchema = z.infer<typeof markAccountReadyBodySchema>
@@ -38,9 +38,22 @@ export class MarkAccountReadyController {
       throw new AppException(errorDictionary.user.notFound)
     }
 
+    // Never leave a user ready without an account, and never overwrite a
+    // real Connect account id unless the caller passes one explicitly.
+    if (!stripeAccountId && !user.stripeAccountId) {
+      throw new AppException({
+        statusCode: 400,
+        errorCode: 'ACCOUNT_ID_REQUIRED',
+        message: 'Informe o stripeAccountId para marcar a conta como pronta.',
+      })
+    }
+
     await this.prisma.users.update({
       where: { email },
-      data: { stripeAccountReady: true, stripeAccountId },
+      data: {
+        stripeAccountReady: true,
+        ...(stripeAccountId && { stripeAccountId }),
+      },
     })
   }
 }

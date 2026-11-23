@@ -22,20 +22,33 @@ pgid_of() { ps -o pgid= -p "$1" 2>/dev/null | tr -d ' ' || true; }
 
 comm_of() { ps -o comm= -p "$1" 2>/dev/null || true; }
 
+lstart_of() { ps -o lstart= -p "$1" 2>/dev/null || true; }
+
 group_alive() { [ -n "${1:-}" ] && kill -0 -- "-$1" 2>/dev/null; }
 
-# Record pid, process group id and command name, so a stale pid file is never trusted blindly.
+# Record pid, process group id, command name and start time, so a stale pid file is never trusted
+# blindly. comm alone is not enough: the api (npm) and other node tools all report `node`.
 record() {
   echo "$2" >"$STATE/$1.pid"
   echo "$2" >"$STATE/$1.pgid"
   comm_of "$2" >"$STATE/$1.comm"
+  lstart_of "$2" >"$STATE/$1.lstart"
 }
 
-# True when the leader pid is alive AND still the command we started (guards against pid reuse).
+# True when live process <pid> has BOTH the recorded command name and the recorded start time of <name>.
+same_process() { # same_process <name> <pid>
+  local comm lstart
+  comm="$(cat "$STATE/$1.comm" 2>/dev/null || true)"
+  lstart="$(cat "$STATE/$1.lstart" 2>/dev/null || true)"
+  [ -n "$comm" ] && [ -n "$lstart" ] &&
+    [ "$(comm_of "$2")" = "$comm" ] && [ "$(lstart_of "$2")" = "$lstart" ]
+}
+
+# True when the leader pid is alive AND still the process we started (guards against pid reuse).
 leader_ours() {
   local pid
   pid="$(pid_of "$1")"
-  alive "$pid" && [ "$(comm_of "$pid")" = "$(cat "$STATE/$1.comm" 2>/dev/null || true)" ]
+  alive "$pid" && same_process "$1" "$pid"
 }
 
 http_code() { curl -s -o /dev/null -w '%{http_code}' "$@" 2>/dev/null || true; }
@@ -52,7 +65,9 @@ is_ours() {
   for name in api stripe; do
     rg="$(cat "$STATE/$name.pgid" 2>/dev/null || true)"
     [ -n "$rg" ] && [ "$rg" = "$g" ] || continue
-    if alive "$(pid_of "$name")"; then leader_ours "$name" && return 0; else return 0; fi
+    if ! alive "$(pid_of "$name")"; then return 0; fi
+    leader_ours "$name" && return 0
+    echo "warning: pid $(pid_of "$name") ($name) is now '$(comm_of "$(pid_of "$name")")' started $(lstart_of "$(pid_of "$name")"), not ours; skipping" >&2
   done
   return 1
 }
@@ -199,9 +214,9 @@ cmd_down() {
     [ -f "$STATE/$name.pgid" ] || continue
     pid="$(pid_of "$name")"
     pgid="$(cat "$STATE/$name.pgid")"
-    # Pid-reuse guard: a live leader with a different command is not ours.
-    if alive "$pid" && [ "$(comm_of "$pid")" != "$(cat "$STATE/$name.comm" 2>/dev/null || true)" ]; then
-      echo "warning: pid $pid ($name) is now '$(comm_of "$pid")', not ours; skipping"
+    # Pid-reuse guard: a live leader whose command name or start time differs is not ours.
+    if alive "$pid" && ! same_process "$name" "$pid"; then
+      echo "warning: pid $pid ($name) is now '$(comm_of "$pid")' started $(lstart_of "$pid"), not ours; skipping"
       continue
     fi
     if [ -z "$pgid" ] || [ "$pgid" = "$own" ]; then continue; fi
