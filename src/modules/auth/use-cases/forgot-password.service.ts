@@ -1,22 +1,28 @@
 import { hash } from 'bcryptjs'
 import { addMinutes } from 'date-fns'
 import { randomInt } from 'node:crypto'
-import { Injectable } from '@nestjs/common'
+import { Injectable, Logger } from '@nestjs/common'
 
-import { AppException } from 'src/exception/app.exception'
+import { EnvService } from 'src/env/env.service'
 import { AuthRepository } from '../repository/auth.repository'
-import { errorDictionary } from 'src/exception/error-dictionary'
 import { NotificationService } from 'src/notification/notification.service'
 
 type ForgotPasswordRequest = {
   email: string
 }
 
+const GENERIC_RESPONSE = {
+  message: 'Se o email existir, um código de recuperação será enviado.',
+}
+
 @Injectable()
 export class ForgotPasswordService {
+  private readonly logger = new Logger(ForgotPasswordService.name)
+
   constructor(
     private authRepository: AuthRepository,
     private notificationService: NotificationService,
+    private env: EnvService,
   ) {}
 
   async execute(data: ForgotPasswordRequest): Promise<{ message: string }> {
@@ -25,10 +31,7 @@ export class ForgotPasswordService {
     const user = await this.authRepository.findByEmail(email)
 
     if (!user) {
-      // Retorna silenciosamente para não expor se o email existe
-      return {
-        message: 'Se o email existir, um código de recuperação será enviado.',
-      }
+      return GENERIC_RESPONSE
     }
 
     const recentCodes = await this.authRepository.countRecentPasswordResetCodes(
@@ -36,18 +39,11 @@ export class ForgotPasswordService {
     )
 
     if (recentCodes >= 3) {
-      throw new AppException(errorDictionary.passwordReset.tooManyRequests)
+      this.logger.warn(`Password reset throttled for user ${user.id}`)
+      return GENERIC_RESPONSE
     }
 
-    const code = randomInt(100000, 999999).toString()
-    const hashedCode = await hash(code, 8)
-    const expiresAt = addMinutes(new Date(), 15)
-
-    await this.authRepository.createPasswordResetCode(
-      user.id,
-      hashedCode,
-      expiresAt,
-    )
+    const code = randomInt(0, 1_000_000).toString().padStart(6, '0')
 
     try {
       await this.notificationService.sendResetCodeByEmail(
@@ -55,12 +51,35 @@ export class ForgotPasswordService {
         code,
         user.name,
       )
-
-      return {
-        message: 'Se o email existir, um código de recuperação será enviado.',
-      }
-    } catch {
-      throw new AppException(errorDictionary.passwordReset.sendFailed)
+    } catch (error) {
+      this.logger.error(
+        `Failed to send password reset email for user ${user.id}`,
+        error instanceof Error ? error.stack : undefined,
+      )
+      return GENERIC_RESPONSE
     }
+
+    const hashedCode = await hash(code, 8)
+    const expiresAt = addMinutes(new Date(), 15)
+
+    try {
+      await this.authRepository.createPasswordResetCode(
+        user.id,
+        hashedCode,
+        expiresAt,
+      )
+    } catch (error) {
+      this.logger.error(
+        `Failed to persist password reset code for user ${user.id}`,
+        error instanceof Error ? error.stack : undefined,
+      )
+      return GENERIC_RESPONSE
+    }
+
+    if (this.env.get('NODE_ENV') === 'development') {
+      this.logger.debug(`Password reset code for ${email}: ${code}`)
+    }
+
+    return GENERIC_RESPONSE
   }
 }

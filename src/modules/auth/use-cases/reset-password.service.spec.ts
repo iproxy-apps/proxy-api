@@ -1,14 +1,20 @@
 import { compare, hash } from 'bcryptjs'
 
 import { makeUser } from '../test-utils/user.factory'
-import { AuthRepository } from '../repository/auth.repository'
+import {
+  AuthRepository,
+  ResetCodeNotUsableError,
+} from '../repository/auth.repository'
 import { ResetPasswordService } from './reset-password.service'
 import { errorDictionary } from 'src/exception/error-dictionary'
 
 type AuthRepositoryMock = jest.Mocked<
   Pick<
     AuthRepository,
-    'findByEmail' | 'findVerifiedResetCode' | 'resetPasswordWithCode'
+    | 'findByEmail'
+    | 'findVerifiedResetCode'
+    | 'resetPasswordWithCode'
+    | 'reservePasswordResetAttempt'
   >
 >
 
@@ -20,6 +26,7 @@ const makeStoredCode = async (
   plaintext: string,
 ): Promise<NonNullable<StoredResetCode>> => ({
   state: 'verified',
+  attempts: 0,
   id: 'reset-1',
   userId: 'user-1',
   createdAt: new Date(),
@@ -36,6 +43,7 @@ describe('ResetPasswordService', () => {
       findByEmail: jest.fn(),
       findVerifiedResetCode: jest.fn(),
       resetPasswordWithCode: jest.fn(),
+      reservePasswordResetAttempt: jest.fn().mockResolvedValue(true),
     }
 
     service = new ResetPasswordService(
@@ -119,5 +127,45 @@ describe('ResetPasswordService', () => {
     await expect(
       compare('my-new-password', hashedPassword as string),
     ).resolves.toBe(true)
+  })
+
+  it('throws invalidOrExpiredCode when the attempt cap is exhausted', async () => {
+    authRepository.findByEmail.mockResolvedValue(makeUser())
+    authRepository.findVerifiedResetCode.mockResolvedValue(
+      await makeStoredCode('654321'),
+    )
+    authRepository.reservePasswordResetAttempt.mockResolvedValue(false)
+
+    await expect(
+      service.execute({
+        code: '654321',
+        email: 'user@test.io',
+        newPassword: 'new-password',
+      }),
+    ).rejects.toMatchObject({
+      errorCode: errorDictionary.passwordReset.invalidOrExpiredCode.errorCode,
+    })
+
+    expect(authRepository.resetPasswordWithCode).not.toHaveBeenCalled()
+  })
+
+  it('maps a concurrently consumed code to invalidOrExpiredCode', async () => {
+    authRepository.findByEmail.mockResolvedValue(makeUser())
+    authRepository.findVerifiedResetCode.mockResolvedValue(
+      await makeStoredCode('654321'),
+    )
+    authRepository.resetPasswordWithCode.mockRejectedValue(
+      new ResetCodeNotUsableError(),
+    )
+
+    await expect(
+      service.execute({
+        code: '654321',
+        email: 'user@test.io',
+        newPassword: 'new-password',
+      }),
+    ).rejects.toMatchObject({
+      errorCode: errorDictionary.passwordReset.invalidOrExpiredCode.errorCode,
+    })
   })
 })

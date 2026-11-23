@@ -2,7 +2,7 @@ import { compare } from 'bcryptjs'
 
 import { makeUser } from '../test-utils/user.factory'
 import { AuthRepository } from '../repository/auth.repository'
-import { errorDictionary } from 'src/exception/error-dictionary'
+import { EnvService } from 'src/env/env.service'
 import { ForgotPasswordService } from './forgot-password.service'
 import { NotificationService } from 'src/notification/notification.service'
 
@@ -17,6 +17,8 @@ type NotificationServiceMock = jest.Mocked<
   Pick<NotificationService, 'sendResetCodeByEmail'>
 >
 
+type EnvServiceMock = jest.Mocked<Pick<EnvService, 'get'>>
+
 const SILENT_MESSAGE =
   'Se o email existir, um código de recuperação será enviado.'
 
@@ -24,6 +26,7 @@ describe('ForgotPasswordService', () => {
   let service: ForgotPasswordService
   let authRepository: AuthRepositoryMock
   let notificationService: NotificationServiceMock
+  let env: EnvServiceMock
 
   beforeEach(() => {
     authRepository = {
@@ -32,10 +35,14 @@ describe('ForgotPasswordService', () => {
       countRecentPasswordResetCodes: jest.fn(),
     }
     notificationService = { sendResetCodeByEmail: jest.fn() }
+    env = {
+      get: jest.fn().mockReturnValue('test'),
+    } as unknown as EnvServiceMock
 
     service = new ForgotPasswordService(
       authRepository as unknown as AuthRepository,
       notificationService as unknown as NotificationService,
+      env as unknown as EnvService,
     )
   })
 
@@ -50,14 +57,12 @@ describe('ForgotPasswordService', () => {
     expect(notificationService.sendResetCodeByEmail).not.toHaveBeenCalled()
   })
 
-  it('throws tooManyRequests when user has 3 or more recent codes', async () => {
+  it('returns the generic message and sends nothing when user has 3 or more recent codes', async () => {
     authRepository.findByEmail.mockResolvedValue(makeUser())
     authRepository.countRecentPasswordResetCodes.mockResolvedValue(3)
 
-    await expect(
-      service.execute({ email: 'user@test.io' }),
-    ).rejects.toMatchObject({
-      errorCode: errorDictionary.passwordReset.tooManyRequests.errorCode,
+    await expect(service.execute({ email: 'user@test.io' })).resolves.toEqual({
+      message: SILENT_MESSAGE,
     })
 
     expect(authRepository.createPasswordResetCode).not.toHaveBeenCalled()
@@ -97,20 +102,29 @@ describe('ForgotPasswordService', () => {
     await expect(compare(plainCode, hashedCode as string)).resolves.toBe(true)
   })
 
-  it('throws sendFailed when the notification service fails', async () => {
+  it('returns the generic message and persists nothing when the notification service fails', async () => {
     authRepository.findByEmail.mockResolvedValue(makeUser())
     authRepository.countRecentPasswordResetCodes.mockResolvedValue(0)
     notificationService.sendResetCodeByEmail.mockRejectedValue(
       new Error('ses down'),
     )
 
-    await expect(
-      service.execute({ email: 'user@test.io' }),
-    ).rejects.toMatchObject({
-      errorCode: errorDictionary.passwordReset.sendFailed.errorCode,
+    await expect(service.execute({ email: 'user@test.io' })).resolves.toEqual({
+      message: SILENT_MESSAGE,
     })
 
-    // code was still persisted before the email was attempted
-    expect(authRepository.createPasswordResetCode).toHaveBeenCalledTimes(1)
+    expect(authRepository.createPasswordResetCode).not.toHaveBeenCalled()
+  })
+
+  it('returns the generic message when persisting the code fails after sending', async () => {
+    authRepository.findByEmail.mockResolvedValue(makeUser())
+    authRepository.countRecentPasswordResetCodes.mockResolvedValue(0)
+    authRepository.createPasswordResetCode.mockRejectedValue(
+      new Error('db down'),
+    )
+
+    await expect(service.execute({ email: 'user@test.io' })).resolves.toEqual({
+      message: SILENT_MESSAGE,
+    })
   })
 })

@@ -196,6 +196,7 @@ model PasswordResetCodes {
   code      String
   expiresAt DateTime
   state     PasswordResetCodeState @default(pending)
+  attempts  Int                    @default(0)
 
   createdAt DateTime @default(now())
 

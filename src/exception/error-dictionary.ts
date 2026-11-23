@@ -227,23 +227,10 @@ export const errorDictionary = {
   },
 
   passwordReset: {
-    tooManyRequests: {
-      message:
-        'Muitas tentativas de recuperação de senha. Aguarde alguns minutos antes de tentar novamente.',
-      statusCode: HttpStatus.TOO_MANY_REQUESTS,
-      errorCode: 'PASSWORD_RESET_TOO_MANY_REQUESTS',
-    } as const,
-
     invalidOrExpiredCode: {
       message: 'Código de recuperação inválido ou expirado.',
       statusCode: HttpStatus.BAD_REQUEST,
       errorCode: 'PASSWORD_RESET_INVALID_CODE',
-    } as const,
-
-    sendFailed: {
-      message: 'Falha ao enviar o código de recuperação. Tente novamente.',
-      statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
-      errorCode: 'PASSWORD_RESET_SEND_FAILED',
     } as const,
   },
 

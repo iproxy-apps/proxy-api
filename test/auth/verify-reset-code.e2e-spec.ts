@@ -1,6 +1,7 @@
 import request from 'supertest'
 import { hash } from 'bcryptjs'
 
+import { MAX_RESET_CODE_ATTEMPTS } from 'src/modules/auth/utils/auth-schemas'
 import { createUser } from '../factories/user.factory'
 import { createTestApp, resetDatabase } from '../setup/test-app.factory'
 
@@ -120,5 +121,107 @@ describe('POST /auth/verify-reset-code (e2e)', () => {
     expect(second.body).toMatchObject({
       errorCode: 'PASSWORD_RESET_INVALID_CODE',
     })
+  })
+
+  it('invalidates the code after 5 wrong attempts', async () => {
+    const user = await createUser(ctx.app, ctx.prisma, { email: 'u@test.io' })
+    const code = await insertCode(user.id, '654321')
+
+    for (let i = 0; i < 5; i++) {
+      const wrong = await request(ctx.app.getHttpServer())
+        .post('/auth/verify-reset-code')
+        .send({ email: user.email, code: '000000' })
+      expect(wrong.status).toBe(400)
+    }
+
+    const stored = await ctx.prisma.passwordResetCodes.findUnique({
+      where: { id: code.id },
+    })
+    expect(stored?.attempts).toBe(5)
+
+    const right = await request(ctx.app.getHttpServer())
+      .post('/auth/verify-reset-code')
+      .send({ email: user.email, code: '654321' })
+    expect(right.status).toBe(400)
+    expect(right.body).toMatchObject({
+      errorCode: 'PASSWORD_RESET_INVALID_CODE',
+    })
+  })
+
+  it('still accepts the right code after fewer than 5 wrong attempts', async () => {
+    const user = await createUser(ctx.app, ctx.prisma, { email: 'u@test.io' })
+    const code = await insertCode(user.id, '654321')
+
+    for (let i = 0; i < 2; i++) {
+      await request(ctx.app.getHttpServer())
+        .post('/auth/verify-reset-code')
+        .send({ email: user.email, code: '000000' })
+    }
+
+    const right = await request(ctx.app.getHttpServer())
+      .post('/auth/verify-reset-code')
+      .send({ email: user.email, code: '654321' })
+    expect(right.status).toBe(200)
+
+    const stored = await ctx.prisma.passwordResetCodes.findUnique({
+      where: { id: code.id },
+    })
+    expect(stored?.state).toBe('verified')
+  })
+
+  it('caps attempts under parallel guesses', async () => {
+    const user = await createUser(ctx.app, ctx.prisma, { email: 'u@test.io' })
+    const code = await insertCode(user.id, '654321')
+
+    await Promise.all(
+      Array.from({ length: 10 }, () =>
+        request(ctx.app.getHttpServer())
+          .post('/auth/verify-reset-code')
+          .send({ email: user.email, code: '000000' }),
+      ),
+    )
+
+    const stored = await ctx.prisma.passwordResetCodes.findUnique({
+      where: { id: code.id },
+    })
+    expect(stored?.attempts).toBeLessThanOrEqual(MAX_RESET_CODE_ATTEMPTS)
+
+    const right = await request(ctx.app.getHttpServer())
+      .post('/auth/verify-reset-code')
+      .send({ email: user.email, code: '654321' })
+    expect(right.status).toBe(400)
+    expect(right.body).toMatchObject({
+      errorCode: 'PASSWORD_RESET_INVALID_CODE',
+    })
+  })
+
+  it('gives reset-password a fresh attempt budget after 4 wrong + right', async () => {
+    const user = await createUser(ctx.app, ctx.prisma, { email: 'u@test.io' })
+    const code = await insertCode(user.id, '654321')
+
+    for (let i = 0; i < 4; i++) {
+      await request(ctx.app.getHttpServer())
+        .post('/auth/verify-reset-code')
+        .send({ email: user.email, code: '000000' })
+    }
+
+    const verify = await request(ctx.app.getHttpServer())
+      .post('/auth/verify-reset-code')
+      .send({ email: user.email, code: '654321' })
+    expect(verify.status).toBe(200)
+
+    const stored = await ctx.prisma.passwordResetCodes.findUnique({
+      where: { id: code.id },
+    })
+    expect(stored?.attempts).toBe(0)
+
+    const reset = await request(ctx.app.getHttpServer())
+      .post('/auth/reset-password')
+      .send({
+        email: user.email,
+        code: '654321',
+        newPassword: 'my-new-password',
+      })
+    expect(reset.status).toBe(200)
   })
 })

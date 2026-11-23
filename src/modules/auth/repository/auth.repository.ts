@@ -2,6 +2,7 @@ import { Prisma } from '@prisma/client'
 import { Injectable } from '@nestjs/common'
 
 import { PrismaService } from 'src/prisma/prisma.service'
+import { MAX_RESET_CODE_ATTEMPTS } from '../utils/auth-schemas'
 
 import type {
   FindUserByEmailResult,
@@ -22,7 +23,14 @@ type PasswordResetCode = {
   code: string
   expiresAt: Date
   state: PasswordResetCodeState
+  attempts: number
   createdAt: Date
+}
+
+export class ResetCodeNotUsableError extends Error {
+  constructor() {
+    super('Reset code is no longer usable')
+  }
 }
 
 @Injectable()
@@ -143,8 +151,16 @@ export class AuthRepository implements AuthRepositoryDTO {
     code: string,
     expiresAt: Date,
   ): Promise<void> {
-    await this.prisma.passwordResetCodes.create({
-      data: { userId, code, expiresAt },
+    await this.prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${userId}))`
+      await tx.passwordResetCodes.updateMany({
+        where: { userId, state: 'pending' },
+        data: { state: 'used' },
+      })
+
+      await tx.passwordResetCodes.create({
+        data: { userId, code, expiresAt },
+      })
     })
   }
 
@@ -159,9 +175,26 @@ export class AuthRepository implements AuthRepositoryDTO {
         userId,
         state: 'pending',
         expiresAt: { gt: new Date() },
+        attempts: { lt: MAX_RESET_CODE_ATTEMPTS },
       },
       orderBy: { createdAt: 'desc' },
     })
+  }
+
+  /**
+   * Atomically reserves one guess against the code (before the bcrypt compare),
+   * so parallel requests cannot exceed MAX_RESET_CODE_ATTEMPTS.
+   */
+  async reservePasswordResetAttempt(
+    codeId: string,
+    state: 'pending' | 'verified' = 'pending',
+  ): Promise<boolean> {
+    const { count } = await this.prisma.passwordResetCodes.updateMany({
+      where: { id: codeId, state, attempts: { lt: MAX_RESET_CODE_ATTEMPTS } },
+      data: { attempts: { increment: 1 } },
+    })
+
+    return count === 1
   }
 
   /**
@@ -191,11 +224,13 @@ export class AuthRepository implements AuthRepositoryDTO {
     })
   }
 
-  async markPasswordResetCodeAsVerified(codeId: string): Promise<void> {
-    await this.prisma.passwordResetCodes.update({
-      where: { id: codeId },
-      data: { state: 'verified' },
+  async markPasswordResetCodeAsVerified(codeId: string): Promise<boolean> {
+    const { count } = await this.prisma.passwordResetCodes.updateMany({
+      where: { id: codeId, state: 'pending' },
+      data: { state: 'verified', attempts: 0 },
     })
+
+    return count === 1
   }
 
   /**
@@ -215,10 +250,13 @@ export class AuthRepository implements AuthRepositoryDTO {
         where: { id: userId },
         data: { password: hashedPassword },
       })
-      await tx.passwordResetCodes.update({
-        where: { id: codeId },
+      const consumed = await tx.passwordResetCodes.updateMany({
+        where: { id: codeId, state: 'verified' },
         data: { state: 'used' },
       })
+      if (consumed.count === 0) {
+        throw new ResetCodeNotUsableError()
+      }
       await tx.refreshTokens.updateMany({
         where: { userId, revokedAt: null },
         data: { revokedAt: new Date() },

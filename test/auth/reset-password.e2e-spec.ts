@@ -211,4 +211,32 @@ describe('POST /auth/reset-password (e2e)', () => {
       expect(response.status).toBe(401)
     }
   })
+
+  it('rejects the right code after 5 wrong reset attempts', async () => {
+    const user = await createUser(ctx.app, ctx.prisma, { email: 'u@test.io' })
+    await insertCode(user.id, '654321')
+
+    for (let i = 0; i < 5; i++) {
+      const wrong = await request(ctx.app.getHttpServer())
+        .post('/auth/reset-password')
+        .send({
+          email: user.email,
+          code: '000000',
+          newPassword: 'my-new-password',
+        })
+      expect(wrong.status).toBe(400)
+    }
+
+    const right = await request(ctx.app.getHttpServer())
+      .post('/auth/reset-password')
+      .send({
+        email: user.email,
+        code: '654321',
+        newPassword: 'my-new-password',
+      })
+    expect(right.status).toBe(400)
+    expect(right.body).toMatchObject({
+      errorCode: 'PASSWORD_RESET_INVALID_CODE',
+    })
+  })
 })

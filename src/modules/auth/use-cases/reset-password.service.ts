@@ -3,7 +3,10 @@ import { Injectable } from '@nestjs/common'
 
 import { AppException } from 'src/exception/app.exception'
 import { hashPassword } from '../utils/password'
-import { AuthRepository } from '../repository/auth.repository'
+import {
+  AuthRepository,
+  ResetCodeNotUsableError,
+} from '../repository/auth.repository'
 import { errorDictionary } from 'src/exception/error-dictionary'
 
 type ResetPasswordRequest = {
@@ -34,6 +37,15 @@ export class ResetPasswordService {
       throw new AppException(errorDictionary.passwordReset.invalidOrExpiredCode)
     }
 
+    const reserved = await this.authRepository.reservePasswordResetAttempt(
+      resetCode.id,
+      'verified',
+    )
+
+    if (!reserved) {
+      throw new AppException(errorDictionary.passwordReset.invalidOrExpiredCode)
+    }
+
     const codeMatches = await compare(code, resetCode.code)
 
     if (!codeMatches) {
@@ -44,11 +56,21 @@ export class ResetPasswordService {
 
     // Atomic: update password AND mark the code as used. If either fails,
     // both roll back, so the code can never be left in a reusable state.
-    await this.authRepository.resetPasswordWithCode(
-      user.id,
-      hashedPassword,
-      resetCode.id,
-    )
+    try {
+      await this.authRepository.resetPasswordWithCode(
+        user.id,
+        hashedPassword,
+        resetCode.id,
+      )
+    } catch (error) {
+      if (error instanceof ResetCodeNotUsableError) {
+        throw new AppException(
+          errorDictionary.passwordReset.invalidOrExpiredCode,
+        )
+      }
+
+      throw error
+    }
 
     return { message: 'Senha redefinida com sucesso.' }
   }

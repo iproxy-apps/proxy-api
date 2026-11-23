@@ -1,4 +1,5 @@
 import z from 'zod'
+import { Throttle } from '@nestjs/throttler'
 import { Post, Body, HttpCode, UsePipes, Controller } from '@nestjs/common'
 
 import { emailSchema, passwordSchema } from '../utils/auth-schemas'
@@ -19,6 +20,7 @@ export class ResetPasswordController {
 
   @Post()
   @HttpCode(200)
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @UsePipes(new ZodValidationPipe(resetPasswordBodySchema))
   async handle(@Body() body: ResetPasswordBodySchema) {
     return await this.resetPasswordService.execute({

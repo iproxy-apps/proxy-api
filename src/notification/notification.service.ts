@@ -1,18 +1,11 @@
 import { Inject, Injectable } from '@nestjs/common'
-import { SNSClient, PublishCommand } from '@aws-sdk/client-sns'
 import { SESClient, SendEmailCommand } from '@aws-sdk/client-ses'
 
-const escapeHtml = (value: string): string =>
-  value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
+import { escapeHtml } from './escape-html'
 
 @Injectable()
 export class NotificationService {
   private ses: SESClient
-  private sns: SNSClient
 
   constructor(
     @Inject('AWS_REGION') private awsRegion: string,
@@ -26,7 +19,6 @@ export class NotificationService {
     }
 
     this.ses = new SESClient({ region: this.awsRegion, credentials })
-    this.sns = new SNSClient({ region: this.awsRegion, credentials })
   }
 
   async sendEmail(to: string, subject: string, body: string): Promise<void> {
@@ -42,15 +34,6 @@ export class NotificationService {
     await this.ses.send(command)
   }
 
-  async sendSms(phoneNumber: string, message: string): Promise<void> {
-    const command = new PublishCommand({
-      PhoneNumber: phoneNumber,
-      Message: message,
-    })
-
-    await this.sns.send(command)
-  }
-
   async sendResetCodeByEmail(
     to: string,
     code: string,
@@ -60,7 +43,7 @@ export class NotificationService {
     const body = `
       <div style="font-family: Arial, sans-serif; max-width: 480px; margin: 0 auto; padding: 24px;">
         <h2 style="color: #333;">Recuperação de senha</h2>
-        <p>Olá, <strong>${userName}</strong>!</p>
+        <p>Olá, <strong>${escapeHtml(userName)}</strong>!</p>
         <p>Você solicitou a recuperação de senha. Use o código abaixo para redefinir sua senha:</p>
         <div style="background: #f4f4f4; border-radius: 8px; padding: 16px; text-align: center; margin: 24px 0;">
           <span style="font-size: 32px; font-weight: bold; letter-spacing: 8px; color: #111;">${code}</span>
@@ -89,10 +72,5 @@ export class NotificationService {
     `
 
     await this.sendEmail(to, subject, body)
-  }
-
-  async sendResetCodeBySms(phoneNumber: string, code: string): Promise<void> {
-    const message = `Seu código de recuperação de senha Proxy é: ${code}. Válido por 15 minutos.`
-    await this.sendSms(phoneNumber, message)
   }
 }

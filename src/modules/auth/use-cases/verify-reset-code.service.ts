@@ -32,6 +32,17 @@ export class VerifyResetCodeService {
       throw new AppException(errorDictionary.passwordReset.invalidOrExpiredCode)
     }
 
+    // Reserve the attempt atomically BEFORE comparing, so parallel guesses
+    // cannot slip past the cap.
+    const reserved = await this.authRepository.reservePasswordResetAttempt(
+      resetCode.id,
+      'pending',
+    )
+
+    if (!reserved) {
+      throw new AppException(errorDictionary.passwordReset.invalidOrExpiredCode)
+    }
+
     const codeMatches = await compare(code, resetCode.code)
 
     if (!codeMatches) {
@@ -40,7 +51,13 @@ export class VerifyResetCodeService {
 
     // Consume the verify step: the code can no longer be re-verified, only
     // used to reset the password.
-    await this.authRepository.markPasswordResetCodeAsVerified(resetCode.id)
+    const verified = await this.authRepository.markPasswordResetCodeAsVerified(
+      resetCode.id,
+    )
+
+    if (!verified) {
+      throw new AppException(errorDictionary.passwordReset.invalidOrExpiredCode)
+    }
 
     return { message: 'Código verificado com sucesso.' }
   }

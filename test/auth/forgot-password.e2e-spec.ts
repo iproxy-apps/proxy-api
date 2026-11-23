@@ -63,7 +63,7 @@ describe('POST /auth/forgot-password (e2e)', () => {
     expect(plainCode).toMatch(/^\d{6}$/)
   })
 
-  it('returns 429 after 3 requests within the rate limit window', async () => {
+  it('returns the generic message and sends nothing after 3 recent codes', async () => {
     const user = await createUser(ctx.app, ctx.prisma, {
       email: 'rate@test.io',
     })
@@ -82,9 +82,45 @@ describe('POST /auth/forgot-password (e2e)', () => {
       .post('/auth/forgot-password')
       .send({ email: 'rate@test.io' })
 
-    expect(response.status).toBe(429)
-    expect(response.body).toMatchObject({
-      errorCode: 'PASSWORD_RESET_TOO_MANY_REQUESTS',
+    expect(response.status).toBe(200)
+    expect(response.body).toMatchObject({ message: silentMessage })
+    expect(ctx.notificationMock.sendResetCodeByEmail).not.toHaveBeenCalled()
+    expect(await ctx.prisma.passwordResetCodes.count()).toBe(3)
+  })
+
+  it('returns the generic message and persists nothing when the email fails to send', async () => {
+    await createUser(ctx.app, ctx.prisma, { email: 'fail@test.io' })
+    ctx.notificationMock.sendResetCodeByEmail.mockRejectedValueOnce(
+      new Error('mail provider down'),
+    )
+
+    const response = await request(ctx.app.getHttpServer())
+      .post('/auth/forgot-password')
+      .send({ email: 'fail@test.io' })
+
+    expect(response.status).toBe(200)
+    expect(response.body).toMatchObject({ message: silentMessage })
+    expect(await ctx.prisma.passwordResetCodes.count()).toBe(0)
+  })
+
+  it('keeps only the newest code pending', async () => {
+    const user = await createUser(ctx.app, ctx.prisma, {
+      email: 'two@test.io',
     })
+
+    for (let i = 0; i < 2; i++) {
+      const response = await request(ctx.app.getHttpServer())
+        .post('/auth/forgot-password')
+        .send({ email: 'two@test.io' })
+      expect(response.status).toBe(200)
+    }
+
+    const codes = await ctx.prisma.passwordResetCodes.findMany({
+      where: { userId: user.id },
+      orderBy: { createdAt: 'asc' },
+    })
+    expect(codes).toHaveLength(2)
+    expect(codes[0].state).toBe('used')
+    expect(codes[1].state).toBe('pending')
   })
 })
