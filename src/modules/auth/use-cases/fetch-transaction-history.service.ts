@@ -5,15 +5,55 @@ import { AuthRepository } from '../repository/auth.repository'
 import { errorDictionary } from 'src/exception/error-dictionary'
 import { FetchUserDetailsService } from './fetch-user-details.service'
 
-import type { TransactionHistoryTask } from '../dtos/auth-repository.dto'
+import type { TaskStatus } from '@prisma/client'
+import type { HistoryTaskRow } from '../dtos/auth-repository.dto'
 
-type CompletedTaskWithNetAmount = TransactionHistoryTask & {
+export const HISTORY_PER_PAGE = 20
+
+export type TaskSummary = {
+  id: string
+  title: string
+  status: TaskStatus
+  city: string
+  offeredPrice: number
   netAmount: number
+  createdAt: Date
+  completedAt: Date | null
+  canceledAt: Date | null
 }
 
-type FetchTransactionHistoryResponse = {
-  tasksCreated: TransactionHistoryTask[]
-  tasksCompleted: CompletedTaskWithNetAmount[]
+export type TransactionHistoryResponse = {
+  tasksCreated: TaskSummary[]
+  tasksCompleted: TaskSummary[]
+  page: number
+  perPage: number
+  hasMore: boolean
+}
+
+// netAmount is what actually moved, read from the stored Decimals (never recomputed)
+export const toTaskSummary = (
+  row: HistoryTaskRow,
+  role: 'owner' | 'executor',
+): TaskSummary => {
+  let netAmount = 0
+  if (role === 'executor') {
+    netAmount =
+      row.status === 'canceled' ? 0 : (row.proxyEarnings?.toNumber() ?? 0)
+  } else if (row.status === 'completed') {
+    netAmount = (row.chargedAmount ?? row.offeredPrice).toNumber()
+  }
+
+  return {
+    id: row.id,
+    title: row.title,
+    status: row.status,
+    city: row.city,
+    offeredPrice: row.offeredPrice.toNumber(),
+    netAmount,
+    createdAt: row.createdAt,
+    completedAt: row.completedAt,
+    canceledAt: row.canceledAt,
+  }
 }
 
 @Injectable()
@@ -23,28 +63,36 @@ export class FetchTransactionHistoryService {
     private fetchUserDetailsService: FetchUserDetailsService,
   ) {}
 
-  async execute(userId: string): Promise<FetchTransactionHistoryResponse> {
+  async execute(
+    userId: string,
+    page: number,
+  ): Promise<TransactionHistoryResponse> {
     const userDetails = await this.fetchUserDetailsService.execute(userId)
 
     if (!userDetails) throw new AppException(errorDictionary.user.notFound)
 
-    const [tasksCreated, tasksCompletedRaw] = await Promise.all([
-      this.authRepository.fetchTasksCreatedByUser(userId),
-      this.authRepository.fetchTasksCompletedByUser(userId),
+    const pageArgs = {
+      skip: (page - 1) * HISTORY_PER_PAGE,
+      take: HISTORY_PER_PAGE + 1,
+    }
+
+    const [createdRows, executedRows] = await Promise.all([
+      this.authRepository.fetchTasksCreatedByUser(userId, pageArgs),
+      this.authRepository.fetchTasksExecutedByUser(userId, pageArgs),
     ])
 
-    // offeredPrice - stripe fee (3.99% + R$ 0.39) - platform fee (20%)
-    const tasksCompleted: CompletedTaskWithNetAmount[] = tasksCompletedRaw.map(
-      (task) => {
-        const price = Number(task.offeredPrice)
-        const stripeFee = price * 0.0399 + 0.39
-        const platformFee = price * 0.2
-        const netAmount = +(price - stripeFee - platformFee).toFixed(2)
-
-        return { ...task, netAmount }
-      },
-    )
-
-    return { tasksCreated, tasksCompleted }
+    return {
+      tasksCreated: createdRows
+        .slice(0, HISTORY_PER_PAGE)
+        .map((row) => toTaskSummary(row, 'owner')),
+      tasksCompleted: executedRows
+        .slice(0, HISTORY_PER_PAGE)
+        .map((row) => toTaskSummary(row, 'executor')),
+      page,
+      perPage: HISTORY_PER_PAGE,
+      hasMore:
+        createdRows.length > HISTORY_PER_PAGE ||
+        executedRows.length > HISTORY_PER_PAGE,
+    }
   }
 }

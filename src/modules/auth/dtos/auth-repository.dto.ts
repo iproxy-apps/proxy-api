@@ -22,10 +22,14 @@ export interface AuthRepositoryDTO {
     userId: string,
     stripeAccountId: string,
   ) => Promise<void>
-  fetchTasksCreatedByUser: (userId: string) => Promise<TransactionHistoryTask[]>
-  fetchTasksCompletedByUser: (
+  fetchTasksCreatedByUser: (
     userId: string,
-  ) => Promise<TransactionHistoryTask[]>
+    page: HistoryPage,
+  ) => Promise<HistoryTaskRow[]>
+  fetchTasksExecutedByUser: (
+    userId: string,
+    page: HistoryPage,
+  ) => Promise<HistoryTaskRow[]>
   deleteAccount: (userId: string) => Promise<DeleteAccountResult>
 }
 
@@ -43,12 +47,17 @@ export type DeleteAccountResult =
       stripeCustomerId: string | null
     }
 
-export type TransactionHistoryTask = {
+export type HistoryPage = { skip: number; take: number }
+
+export type HistoryTaskRow = {
   id: string
   title: string
-  description: string
+  status: TaskStatus
+  city: string
   offeredPrice: Prisma.Decimal
-  status: string
+  chargedAmount: Prisma.Decimal | null
+  proxyEarnings: Prisma.Decimal | null
   createdAt: Date
   completedAt: Date | null
+  canceledAt: Date | null
 }

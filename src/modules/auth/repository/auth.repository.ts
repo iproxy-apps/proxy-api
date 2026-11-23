@@ -12,10 +12,24 @@ import type {
 import type {
   AuthRepositoryDTO,
   DeleteAccountResult,
-  TransactionHistoryTask,
+  HistoryPage,
+  HistoryTaskRow,
 } from '../dtos/auth-repository.dto'
 
 type UsersCreateInput = Prisma.UsersCreateInput
+
+const HISTORY_TASK_SELECT = {
+  id: true,
+  title: true,
+  status: true,
+  city: true,
+  offeredPrice: true,
+  chargedAmount: true,
+  proxyEarnings: true,
+  createdAt: true,
+  completedAt: true,
+  canceledAt: true,
+} satisfies Prisma.TasksSelect
 
 type PasswordResetCodeState = 'pending' | 'verified' | 'used'
 
@@ -102,40 +116,30 @@ export class AuthRepository implements AuthRepositoryDTO {
 
   async fetchTasksCreatedByUser(
     userId: string,
-  ): Promise<TransactionHistoryTask[]> {
+    page: HistoryPage,
+  ): Promise<HistoryTaskRow[]> {
     return this.prisma.tasks.findMany({
       where: { owner: userId },
-      select: {
-        id: true,
-        title: true,
-        description: true,
-        offeredPrice: true,
-        status: true,
-        createdAt: true,
-        completedAt: true,
-      },
+      select: HISTORY_TASK_SELECT,
       orderBy: { createdAt: 'desc' },
+      skip: page.skip,
+      take: page.take,
     })
   }
 
-  async fetchTasksCompletedByUser(
+  async fetchTasksExecutedByUser(
     userId: string,
-  ): Promise<TransactionHistoryTask[]> {
+    page: HistoryPage,
+  ): Promise<HistoryTaskRow[]> {
     return this.prisma.tasks.findMany({
       where: {
         userTaskMappings: { some: { executorId: userId } },
-        status: 'completed',
+        status: { in: ['completed', 'canceled', 'payout_failed'] },
       },
-      select: {
-        id: true,
-        title: true,
-        description: true,
-        offeredPrice: true,
-        status: true,
-        createdAt: true,
-        completedAt: true,
-      },
-      orderBy: { completedAt: 'desc' },
+      select: HISTORY_TASK_SELECT,
+      orderBy: { updatedAt: 'desc' },
+      skip: page.skip,
+      take: page.take,
     })
   }
 

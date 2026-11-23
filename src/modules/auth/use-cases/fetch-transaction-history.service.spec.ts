@@ -5,29 +5,76 @@ import { AppException } from 'src/exception/app.exception'
 import { AuthRepository } from '../repository/auth.repository'
 import { errorDictionary } from 'src/exception/error-dictionary'
 import { FetchUserDetailsService } from './fetch-user-details.service'
-import { FetchTransactionHistoryService } from './fetch-transaction-history.service'
+import {
+  HISTORY_PER_PAGE,
+  toTaskSummary,
+  FetchTransactionHistoryService,
+} from './fetch-transaction-history.service'
 
-import type { TransactionHistoryTask } from '../dtos/auth-repository.dto'
+import type { HistoryTaskRow } from '../dtos/auth-repository.dto'
 
 type AuthRepositoryMock = jest.Mocked<
-  Pick<AuthRepository, 'fetchTasksCreatedByUser' | 'fetchTasksCompletedByUser'>
+  Pick<AuthRepository, 'fetchTasksCreatedByUser' | 'fetchTasksExecutedByUser'>
 >
 
 type FetchUserDetailsServiceMock = jest.Mocked<
   Pick<FetchUserDetailsService, 'execute'>
 >
 
-const makeTask = (
-  overrides: Partial<TransactionHistoryTask> = {},
-): TransactionHistoryTask => ({
+const makeRow = (overrides: Partial<HistoryTaskRow> = {}): HistoryTaskRow => ({
   id: 'task-1',
   title: 'Task',
   status: 'completed',
-  description: 'desc',
+  city: 'São Paulo',
+  offeredPrice: new Prisma.Decimal(100),
+  chargedAmount: new Prisma.Decimal(100),
+  proxyEarnings: new Prisma.Decimal(80),
   createdAt: new Date('2026-01-01'),
   completedAt: new Date('2026-01-02'),
-  offeredPrice: new Prisma.Decimal(100),
+  canceledAt: null,
   ...overrides,
+})
+
+describe('toTaskSummary netAmount', () => {
+  it('executor + completed: the stored proxyEarnings', () => {
+    const summary = toTaskSummary(makeRow(), 'executor')
+    expect(summary.netAmount).toBe(80)
+    expect(typeof summary.offeredPrice).toBe('number')
+  })
+
+  it('executor + canceled: 0', () => {
+    expect(
+      toTaskSummary(makeRow({ status: 'canceled' }), 'executor').netAmount,
+    ).toBe(0)
+  })
+
+  it('executor + legacy row without proxyEarnings: 0', () => {
+    expect(
+      toTaskSummary(makeRow({ proxyEarnings: null }), 'executor').netAmount,
+    ).toBe(0)
+  })
+
+  it('owner + completed: chargedAmount, falling back to offeredPrice', () => {
+    expect(toTaskSummary(makeRow(), 'owner').netAmount).toBe(100)
+    expect(
+      toTaskSummary(
+        makeRow({
+          chargedAmount: null,
+          offeredPrice: new Prisma.Decimal('80.5'),
+        }),
+        'owner',
+      ).netAmount,
+    ).toBe(80.5)
+  })
+
+  it('owner + not completed: 0', () => {
+    expect(
+      toTaskSummary(makeRow({ status: 'canceled' }), 'owner').netAmount,
+    ).toBe(0)
+    expect(
+      toTaskSummary(makeRow({ status: 'available' }), 'owner').netAmount,
+    ).toBe(0)
+  })
 })
 
 describe('FetchTransactionHistoryService', () => {
@@ -38,7 +85,7 @@ describe('FetchTransactionHistoryService', () => {
   beforeEach(() => {
     authRepository = {
       fetchTasksCreatedByUser: jest.fn(),
-      fetchTasksCompletedByUser: jest.fn(),
+      fetchTasksExecutedByUser: jest.fn(),
     }
     fetchUserDetailsService = { execute: jest.fn() }
 
@@ -53,72 +100,66 @@ describe('FetchTransactionHistoryService', () => {
       new AppException(errorDictionary.user.notFound),
     )
 
-    await expect(service.execute('missing-user')).rejects.toMatchObject({
+    await expect(service.execute('missing-user', 1)).rejects.toMatchObject({
       errorCode: errorDictionary.user.notFound.errorCode,
     })
 
     expect(authRepository.fetchTasksCreatedByUser).not.toHaveBeenCalled()
-    expect(authRepository.fetchTasksCompletedByUser).not.toHaveBeenCalled()
+    expect(authRepository.fetchTasksExecutedByUser).not.toHaveBeenCalled()
   })
 
-  it('returns empty lists when user has no history', async () => {
+  it('returns the empty shape when user has no history', async () => {
     fetchUserDetailsService.execute.mockResolvedValue(makeUser())
     authRepository.fetchTasksCreatedByUser.mockResolvedValue([])
-    authRepository.fetchTasksCompletedByUser.mockResolvedValue([])
+    authRepository.fetchTasksExecutedByUser.mockResolvedValue([])
 
-    const result = await service.execute('user-1')
+    const result = await service.execute('user-1', 1)
 
-    expect(result).toEqual({ tasksCreated: [], tasksCompleted: [] })
+    expect(result).toEqual({
+      tasksCreated: [],
+      tasksCompleted: [],
+      page: 1,
+      perPage: HISTORY_PER_PAGE,
+      hasMore: false,
+    })
   })
 
-  it('returns created tasks untouched and computes netAmount for completed tasks', async () => {
-    const createdTask = makeTask({
-      id: 'created-1',
-      completedAt: null,
-      status: 'available',
-      offeredPrice: new Prisma.Decimal(200),
-    })
-
-    const completedTask = makeTask({
-      id: 'completed-1',
-      offeredPrice: new Prisma.Decimal(100),
-    })
-
+  it('fetches take = perPage + 1 with skip from the page and slices the extra row', async () => {
+    const rows = Array.from({ length: HISTORY_PER_PAGE + 1 }, (_, i) =>
+      makeRow({ id: `t-${i}` }),
+    )
     fetchUserDetailsService.execute.mockResolvedValue(makeUser())
-    authRepository.fetchTasksCreatedByUser.mockResolvedValue([createdTask])
-    authRepository.fetchTasksCompletedByUser.mockResolvedValue([completedTask])
+    authRepository.fetchTasksCreatedByUser.mockResolvedValue(rows)
+    authRepository.fetchTasksExecutedByUser.mockResolvedValue([])
 
-    const result = await service.execute('user-1')
+    const result = await service.execute('user-1', 3)
 
+    const pageArgs = { skip: 2 * HISTORY_PER_PAGE, take: HISTORY_PER_PAGE + 1 }
     expect(authRepository.fetchTasksCreatedByUser).toHaveBeenCalledWith(
       'user-1',
+      pageArgs,
     )
-
-    expect(authRepository.fetchTasksCompletedByUser).toHaveBeenCalledWith(
+    expect(authRepository.fetchTasksExecutedByUser).toHaveBeenCalledWith(
       'user-1',
+      pageArgs,
     )
-
-    expect(result.tasksCreated).toEqual([createdTask])
-
-    // 100 - (100 * 0.0399 + 0.39) - (100 * 0.2) = 100 - 4.38 - 20 = 75.62
-    expect(result.tasksCompleted).toEqual([
-      { ...completedTask, netAmount: 75.62 },
-    ])
+    expect(result.tasksCreated).toHaveLength(HISTORY_PER_PAGE)
+    expect(result.hasMore).toBe(true)
+    expect(result.page).toBe(3)
   })
 
-  it('rounds netAmount to two decimals', async () => {
-    // 50 - (50 * 0.0399 + 0.39) - (50 * 0.2) = 50 - 2.385 - 10 = 37.615 -> 37.62
-    const completedTask = makeTask({
-      id: 'completed-2',
-      offeredPrice: new Prisma.Decimal(50),
-    })
-
+  it('sets hasMore when only the executed list overflows', async () => {
     fetchUserDetailsService.execute.mockResolvedValue(makeUser())
     authRepository.fetchTasksCreatedByUser.mockResolvedValue([])
-    authRepository.fetchTasksCompletedByUser.mockResolvedValue([completedTask])
+    authRepository.fetchTasksExecutedByUser.mockResolvedValue(
+      Array.from({ length: HISTORY_PER_PAGE + 1 }, (_, i) =>
+        makeRow({ id: `e-${i}` }),
+      ),
+    )
 
-    const result = await service.execute('user-1')
+    const result = await service.execute('user-1', 1)
 
-    expect(result.tasksCompleted[0].netAmount).toBe(37.62)
+    expect(result.tasksCompleted).toHaveLength(HISTORY_PER_PAGE)
+    expect(result.hasMore).toBe(true)
   })
 })
