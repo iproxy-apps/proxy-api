@@ -66,7 +66,6 @@ export class SeedUserService {
         stripeAccountReady: input.stripeAccountReady,
         stripeCustomerId,
         phoneNumber: '+5511999999999',
-        isVerified: true,
         termsAccepted: true,
         password: await hash(input.password, 8),
       },

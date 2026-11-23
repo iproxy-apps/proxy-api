@@ -134,8 +134,6 @@ export class AuthRepository implements AuthRepositoryDTO {
         email: `deleted-${userId}@deleted.local`,
         phoneNumber: null,
         avatarUrl: null,
-        documentUrl: null,
-        documentType: null,
       },
     })
   }

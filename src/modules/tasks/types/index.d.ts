@@ -88,7 +88,6 @@ export type FetchTasksResult = {
     email: string
     phoneNumber: string | null
     avatarUrl: string | null
-    isVerified: boolean
     rating: Decimal
     totalTasksCompleted: number
     totalTasksCreated: number
@@ -125,7 +124,6 @@ export type TaskCounterpart = {
   id: string
   name: string
   avatarUrl: string | null
-  isVerified: boolean
   rating: Decimal
 }
 

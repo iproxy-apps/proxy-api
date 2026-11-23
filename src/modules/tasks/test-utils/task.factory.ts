@@ -26,7 +26,6 @@ export const makeTaskDetails = (
     id: 'client-1',
     email: 'email',
     avatarUrl: null,
-    isVerified: true,
     phoneNumber: null,
     totalTasksCreated: 0,
     stripeCustomerId: null,

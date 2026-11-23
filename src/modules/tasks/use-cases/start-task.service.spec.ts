@@ -55,7 +55,6 @@ const makeTaskWithOwner = (
       name: 'Owner',
       id: 'client-1',
       avatarUrl: null,
-      isVerified: true,
       phoneNumber: null,
       totalTasksCreated: 0,
       email: 'owner@test.io',

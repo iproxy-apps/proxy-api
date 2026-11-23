@@ -82,8 +82,6 @@ describe('DELETE /auth/account (e2e)', () => {
     expect(stored?.email).toBe(`deleted-${user.id}@deleted.local`)
     expect(stored?.phoneNumber).toBeNull()
     expect(stored?.avatarUrl).toBeNull()
-    expect(stored?.documentUrl).toBeNull()
-    expect(stored?.documentType).toBeNull()
   })
 
   it('rejects subsequent requests with the same token after deletion', async () => {

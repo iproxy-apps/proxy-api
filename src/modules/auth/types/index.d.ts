@@ -1,4 +1,4 @@
-import type { DocumentType, Prisma } from '@prisma/client'
+import type { Prisma } from '@prisma/client'
 
 type Decimal = Prisma.Decimal
 
@@ -23,9 +23,6 @@ export type FindUserByEmailResult = {
   phoneNumber: string | null
   avatarUrl: string | null
   userType: UserType
-  documentType: DocumentType | null
-  documentUrl: string | null
-  isVerified: boolean
   rating: Decimal
   totalTasksCompleted: number
   totalTasksCreated: number

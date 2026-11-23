@@ -12,12 +12,6 @@ enum UserType {
   PROXY
 }
 
-enum DocumentType {
-  RG
-  CPF
-  CNPJ
-}
-
 enum TaskStatus {
   available
   accepted
@@ -45,9 +39,6 @@ model Users {
   phoneNumber         String?
   avatarUrl           String?
   userType            UserType
-  documentType        DocumentType?
-  documentUrl         String?
-  isVerified          Boolean       @default(false)
   rating              Decimal       @default(0) @db.Decimal(3, 2)
   totalTasksCompleted Int           @default(0)
   totalTasksCreated   Int           @default(0)

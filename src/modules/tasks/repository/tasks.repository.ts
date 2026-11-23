@@ -45,7 +45,6 @@ export const taskSelect = {
       email: true,
       phoneNumber: true,
       avatarUrl: true,
-      isVerified: true,
       rating: true,
       totalTasksCompleted: true,
       totalTasksCreated: true,
@@ -192,7 +191,6 @@ export class TasksRepository implements TasksRepositoryDTO {
         id: true,
         name: true,
         avatarUrl: true,
-        isVerified: true,
         rating: true,
       },
     })

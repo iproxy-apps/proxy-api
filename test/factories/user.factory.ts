@@ -58,7 +58,6 @@ export const createUser = async (
       stripeAccountId,
       stripeAccountReady,
       stripeCustomerId,
-      isVerified: true,
       termsAccepted: true,
       password: passwordHash,
     },

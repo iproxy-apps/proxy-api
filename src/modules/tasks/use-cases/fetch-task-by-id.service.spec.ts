@@ -93,7 +93,6 @@ describe('FetchTaskByIdService', () => {
       id: 'user-proxy-executor',
       name: 'Jane Proxy',
       avatarUrl: null,
-      isVerified: true,
       rating: 4.8,
     } as unknown as Awaited<
       ReturnType<TasksRepository['fetchTaskCounterpartById']>
