@@ -243,7 +243,7 @@ export const errorDictionary = {
   file: {
     formatNotSupported: {
       message:
-        'Formato de arquivo não suportado. Envie uma imagem JPG, PNG ou WEBP.',
+        'Formato de arquivo não suportado. Envie uma imagem JPG, PNG, WEBP ou HEIC.',
       statusCode: HttpStatus.BAD_REQUEST,
       errorCode: 'FILE_FORMAT_NOT_SUPPORTED',
     } as const,
