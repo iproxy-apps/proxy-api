@@ -5,6 +5,7 @@ import type {
   FetchTasksResult,
   ReleaseClaimData,
   RecordTransferData,
+  StaleTask,
   TransitionTaskData,
   CreateTaskResult,
   FetchTaskByIdData,
@@ -33,4 +34,5 @@ export interface TasksRepositoryDTO {
   } | null>
   flagCardActionRequired: (userId: string) => Promise<void>
   recordTransfer: (data: RecordTransferData) => Promise<void>
+  findStaleVerificationRequired: (completedBefore: Date) => Promise<StaleTask[]>
 }

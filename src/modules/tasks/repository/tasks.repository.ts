@@ -9,6 +9,7 @@ import type {
   InsertTaskData,
   ReleaseClaimData,
   RecordTransferData,
+  StaleTask,
   TransitionTaskData,
   TaskStatus,
   TaskCounterpart,
@@ -279,5 +280,19 @@ export class TasksRepository implements TasksRepositoryDTO {
         },
       }),
     ])
+  }
+
+  async findStaleVerificationRequired(
+    completedBefore: Date,
+  ): Promise<StaleTask[]> {
+    return await this.prisma.tasks.findMany({
+      where: {
+        status: 'verification_required',
+        completedAt: { lte: completedBefore },
+      },
+      select: { id: true, owner: true },
+      orderBy: { completedAt: 'asc' },
+      take: 200,
+    })
   }
 }

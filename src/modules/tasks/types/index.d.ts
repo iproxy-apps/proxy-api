@@ -173,3 +173,8 @@ export type RecordTransferData = {
   transferId: string
   proxyEarnings: Decimal
 }
+
+export type StaleTask = {
+  id: string
+  owner: string
+}

@@ -31,6 +31,7 @@ import { PricePreviewController } from './controllers/price-preview.controller'
 import { FetchTaskByIdController } from './controllers/fetch-task-by-id.controller'
 import { FetchActiveTasksController } from './controllers/fetch-active-tasks.controller'
 import { FetchUserDetailsService } from '../auth/use-cases/fetch-user-details.service'
+import { AutoReleaseTasksJob } from './jobs/auto-release-tasks.job'
 import { SaveCardService } from '../cards/use-cases/save-card.service'
 
 import { multerOptions } from 'src/pipes/multer-validation.pipe'
@@ -61,6 +62,7 @@ import { multerOptions } from 'src/pipes/multer-validation.pipe'
     FetchTaskProofService,
     FetchUserDetailsService,
     SaveCardService,
+    AutoReleaseTasksJob,
   ],
   controllers: [
     StartTaskController,

@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common'
 import { APP_GUARD } from '@nestjs/core'
 import { ConfigModule } from '@nestjs/config'
+import { ScheduleModule } from '@nestjs/schedule'
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler'
 
 import { envSchema } from './env/env'
@@ -28,6 +29,7 @@ import { StorageModule } from './storage/storage.module'
 
     PrismaModule,
     StorageModule,
+    ScheduleModule.forRoot(),
 
     ThrottlerModule.forRoot({
       throttlers: [{ ttl: 60_000, limit: 100 }],
