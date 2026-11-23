@@ -20,6 +20,8 @@ describe('POST /tasks/validate (e2e)', () => {
 
   beforeEach(async () => {
     await resetDatabase(ctx.prisma)
+    ctx.stripeMock.findTransferByGroup.mockReset()
+    ctx.stripeMock.findTransferByGroup.mockResolvedValue(null)
     ctx.stripeMock.createTransferFromCharge.mockReset()
     ctx.stripeMock.createTransferFromCharge.mockResolvedValue({
       id: 'tr_test_123',
@@ -164,6 +166,29 @@ describe('POST /tasks/validate (e2e)', () => {
     })
     expect(ratings).toHaveLength(0)
     expect(Number(updatedProxy?.rating)).toBe(0)
+  })
+
+  it('reuses an existing transfer of the group and credits the wallet once', async () => {
+    const { owner, proxy, task } = await seedTaskPendingValidation(100)
+    ctx.stripeMock.findTransferByGroup.mockResolvedValue({
+      id: 'tr_existing',
+    } as unknown as Awaited<
+      ReturnType<typeof ctx.stripeMock.findTransferByGroup>
+    >)
+
+    const response = await validate(owner.token, task.id)
+
+    expect(response.status).toBe(200)
+    expect(ctx.stripeMock.findTransferByGroup).toHaveBeenCalledWith(task.id)
+    expect(ctx.stripeMock.createTransferFromCharge).not.toHaveBeenCalled()
+
+    const { task: updatedTask, proxy: updatedProxy } = await readState(
+      task.id,
+      proxy.id,
+    )
+    expect(updatedTask?.status).toBe('completed')
+    expect(updatedTask?.transferId).toBe('tr_existing')
+    expect(updatedProxy?.walletBalance.toFixed(2)).toBe('80.00')
   })
 
   it('computes the 80 % transfer for a legacy task without stored proxyEarnings', async () => {

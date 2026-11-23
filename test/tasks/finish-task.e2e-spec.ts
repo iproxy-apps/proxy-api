@@ -31,7 +31,7 @@ describe('POST /tasks/finish (e2e)', () => {
     await resetDatabase(ctx.prisma)
   })
 
-  const seedInProgressTask = async () => {
+  const seedInProgressTask = async ({ withPayment = true } = {}) => {
     const owner = await createUser(ctx.app, ctx.prisma, {
       email: 'owner@test.io',
     })
@@ -46,6 +46,12 @@ describe('POST /tasks/finish (e2e)', () => {
     await ctx.prisma.userTaskMapping.create({
       data: { taskId: task.id, executorId: proxy.id },
     })
+    if (withPayment) {
+      await createPayment(ctx.prisma, task.id, {
+        status: 'succeeded',
+        chargeId: 'ch_test_1',
+      })
+    }
     return { owner, proxy, task }
   }
 
@@ -152,8 +158,31 @@ describe('POST /tasks/finish (e2e)', () => {
     expect(stored.status).toBe('in_progress')
   })
 
+  it('refuses to finish without a confirmed charge and writes nothing', async () => {
+    const { proxy, task } = await seedInProgressTask({ withPayment: false })
+
+    const response = await request(ctx.app.getHttpServer())
+      .post('/tasks/finish')
+      .set('Authorization', `Bearer ${proxy.token}`)
+      .field('taskId', task.id)
+      .attach('file', png, { filename: 'proof.png', contentType: 'image/png' })
+
+    expect(response.status).toBe(409)
+    expect(response.body).toMatchObject({ errorCode: 'PAYMENT_NOT_CONFIRMED' })
+
+    const stored = await ctx.prisma.tasks.findUniqueOrThrow({
+      where: { id: task.id },
+    })
+    expect(stored.status).toBe('in_progress')
+    expect(stored.proofImageUrl).toBeNull()
+    const written = await fs
+      .readdir(join(process.env.PROOF_DIR!, task.id))
+      .catch(() => [])
+    expect(written).toHaveLength(0)
+  })
+
   it('refuses to finish when the payment is disputed', async () => {
-    const { proxy, task } = await seedInProgressTask()
+    const { proxy, task } = await seedInProgressTask({ withPayment: false })
     await createPayment(ctx.prisma, task.id, {
       status: 'disputed',
       disputeId: 'dp_1',

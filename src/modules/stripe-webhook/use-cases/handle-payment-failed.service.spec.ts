@@ -14,6 +14,7 @@ describe('HandlePaymentFailedService', () => {
   let mappingDeleteMany: jest.Mock
   let findByPaymentIntent: jest.Mock
   let releaseClaim: jest.Mock
+  let tasksFindUnique: jest.Mock
 
   const claimedAt = '2026-11-23T10:00:00.000Z'
   const metadata = { taskId: 'task-1', proxyId: 'proxy-1', claimedAt }
@@ -33,10 +34,12 @@ describe('HandlePaymentFailedService', () => {
       .mockImplementation(async (cb: (t: typeof tx) => unknown) => cb(tx))
     findByPaymentIntent = jest.fn().mockResolvedValue(null)
     releaseClaim = jest.fn().mockResolvedValue(true)
+    tasksFindUnique = jest.fn().mockResolvedValue({ owner: 'client-1' })
 
     service = new HandlePaymentFailedService(
       {
         payments: { findFirst },
+        tasks: { findUnique: tasksFindUnique },
         $transaction: transaction,
       } as unknown as PrismaService,
       { releaseClaim } as unknown as TasksRepository,
@@ -109,6 +112,11 @@ describe('HandlePaymentFailedService', () => {
       taskId: 'task-1',
       executorId: 'proxy-1',
       startedAt: new Date(claimedAt),
+      cardActionOwnerId: 'client-1',
+    })
+    expect(tasksFindUnique).toHaveBeenCalledWith({
+      where: { id: 'task-1' },
+      select: { owner: true },
     })
   })
 

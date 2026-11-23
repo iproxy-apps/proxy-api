@@ -6,6 +6,7 @@ describe('StripeService', () => {
   const setupIntentsCreate = jest.fn()
   const refundsCreate = jest.fn()
   const transfersCreate = jest.fn()
+  const transfersList = jest.fn()
 
   const stubSdk = (svc: StripeService) => {
     ;(svc as any).stripe = {
@@ -13,7 +14,7 @@ describe('StripeService', () => {
       paymentIntents: { create },
       setupIntents: { create: setupIntentsCreate },
       refunds: { create: refundsCreate },
-      transfers: { create: transfersCreate },
+      transfers: { create: transfersCreate, list: transfersList },
     }
     return svc
   }
@@ -99,6 +100,19 @@ describe('StripeService', () => {
       usage: 'off_session',
       payment_method_types: ['card'],
     })
+  })
+
+  it('finds the transfer of a group, or null', async () => {
+    transfersList.mockResolvedValueOnce({ data: [{ id: 'tr_1' }] })
+    await expect(service.findTransferByGroup('t1')).resolves.toEqual({
+      id: 'tr_1',
+    })
+    expect(transfersList).toHaveBeenCalledWith({
+      transfer_group: 't1',
+      limit: 1,
+    })
+    transfersList.mockResolvedValueOnce({ data: [] })
+    await expect(service.findTransferByGroup('t2')).resolves.toBeNull()
   })
 
   it('creates transfers from the charge with group and idempotency key', async () => {

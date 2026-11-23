@@ -67,11 +67,17 @@ export class HandlePaymentFailedService {
       return
     }
 
+    const task = await this.prisma.tasks.findUnique({
+      where: { id: taskId },
+      select: { owner: true },
+    })
+
     // releases only that exact claim; no-op when already released or superseded
     await this.tasksRepository.releaseClaim({
       taskId,
       executorId: proxyId,
       startedAt,
+      cardActionOwnerId: task?.owner,
     })
   }
 }

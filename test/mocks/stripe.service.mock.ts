@@ -21,7 +21,10 @@ export const createStripeServiceMock = (): jest.Mocked<StripeService> =>
     refundPaymentIntent: jest
       .fn()
       .mockResolvedValue({ id: 're_test_123', status: 'succeeded' }),
-    createTransferFromCharge: jest.fn().mockResolvedValue({ id: 'tr_test_123' }),
+    findTransferByGroup: jest.fn().mockResolvedValue(null),
+    createTransferFromCharge: jest
+      .fn()
+      .mockResolvedValue({ id: 'tr_test_123' }),
     detachPaymentMethod: jest.fn().mockResolvedValue({ id: 'pm_test_123' }),
     createMerchantAccount: jest.fn().mockResolvedValue({ id: 'acct_test_123' }),
     linkMerchantAccount: jest

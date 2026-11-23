@@ -25,7 +25,10 @@ export class StripeService {
     })
   }
 
-  constructWebhookEvent(rawBody: Buffer | string, signature: string): Stripe.Event {
+  constructWebhookEvent(
+    rawBody: Buffer | string,
+    signature: string,
+  ): Stripe.Event {
     try {
       return this.stripe.webhooks.constructEvent(
         rawBody,
@@ -90,6 +93,16 @@ export class StripeService {
       { payment_intent: paymentIntentId },
       { idempotencyKey },
     )
+  }
+
+  async findTransferByGroup(
+    transferGroup: string,
+  ): Promise<Stripe.Transfer | null> {
+    const list = await this.stripe.transfers.list({
+      transfer_group: transferGroup,
+      limit: 1,
+    })
+    return list.data[0] ?? null
   }
 
   async createTransferFromCharge(

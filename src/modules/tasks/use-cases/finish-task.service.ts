@@ -50,6 +50,9 @@ export class FinishTaskService {
     if (payment?.status === 'disputed') {
       throw new AppException(errorDictionary.payment.disputed)
     }
+    if (payment?.status !== 'succeeded' || !payment.chargeId) {
+      throw new AppException(errorDictionary.payment.notConfirmed)
+    }
 
     // NOTE: there is no time-based cutoff on finishing a task. The 1h grace
     // window only applies to the client's *cancel* action; the proxy's

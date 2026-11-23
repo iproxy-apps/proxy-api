@@ -78,16 +78,33 @@ export class ValidateTaskService {
 
     let transferId: string
     try {
-      const transfer = await this.stripeService.createTransferFromCharge(
-        {
-          amount: toCentavos(earnings),
-          destination: proxy.stripeAccountId,
-          sourceTransaction: payment.chargeId,
-          transferGroup: taskId,
-          taskId,
-        },
-        `task:${taskId}:transfer`,
-      )
+      // Stripe's idempotency key only lives 24 h: look the transfer up by group first
+      let transfer = await this.stripeService.findTransferByGroup(taskId)
+      if (
+        transfer &&
+        (transfer.reversed === true || (transfer.amount_reversed ?? 0) > 0)
+      ) {
+        this.logger.error(
+          `task ${taskId}: existing transfer ${transfer.id} was reversed; not reusing`,
+        )
+        throw new AppException(errorDictionary.tasks.transferFailed)
+      }
+      if (transfer) {
+        this.logger.warn(
+          `task ${taskId}: reusing existing transfer ${transfer.id}`,
+        )
+      } else {
+        transfer = await this.stripeService.createTransferFromCharge(
+          {
+            amount: toCentavos(earnings),
+            destination: proxy.stripeAccountId,
+            sourceTransaction: payment.chargeId,
+            transferGroup: taskId,
+            taskId,
+          },
+          `task:${taskId}:transfer`,
+        )
+      }
       if (!transfer?.id) {
         throw new AppException(errorDictionary.tasks.transferFailed)
       }

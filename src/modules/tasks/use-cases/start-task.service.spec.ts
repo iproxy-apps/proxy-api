@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common'
 import { Prisma } from '@prisma/client'
 import { StartTaskService } from './start-task.service'
 import { StripeService } from 'src/stripe/stripe.service'
@@ -25,9 +26,14 @@ type TasksRepositoryMock = jest.Mocked<
   >
 >
 type PaymentsRepositoryMock = jest.Mocked<
-  Pick<PaymentsRepository, 'fetchLatestByTaskId' | 'recordSucceededCharge'>
+  Pick<
+    PaymentsRepository,
+    'fetchLatestByTaskId' | 'recordSucceededCharge' | 'updateById'
+  >
 >
-type StripeServiceMock = jest.Mocked<Pick<StripeService, 'chargeSavedCard'>>
+type StripeServiceMock = jest.Mocked<
+  Pick<StripeService, 'chargeSavedCard' | 'refundPaymentIntent'>
+>
 type FetchUserCardServiceMock = jest.Mocked<
   Pick<FetchUserCardService, 'execute'>
 >
@@ -76,7 +82,10 @@ describe('StartTaskService', () => {
   const args = { taskId: 'task-1', userId: 'proxy-1' }
 
   beforeEach(() => {
-    stripeService = { chargeSavedCard: jest.fn() }
+    stripeService = {
+      chargeSavedCard: jest.fn(),
+      refundPaymentIntent: jest.fn(),
+    }
     tasksRepository = {
       fetchTaskById: jest.fn(),
       fetchTaskMappingByTaskId: jest.fn(),
@@ -88,6 +97,7 @@ describe('StartTaskService', () => {
     paymentsRepository = {
       fetchLatestByTaskId: jest.fn(),
       recordSucceededCharge: jest.fn(),
+      updateById: jest.fn(),
     }
     fetchUserCardService = { execute: jest.fn() }
     fetchUserDetailsService = { execute: jest.fn() }
@@ -328,6 +338,94 @@ describe('StartTaskService', () => {
     expect(tasksRepository.claimTask).not.toHaveBeenCalled()
     expect(stripeService.chargeSavedCard).not.toHaveBeenCalled()
     expect(fetchUserCardService.execute).not.toHaveBeenCalled()
+  })
+
+  it('answers chargePending without charging when the live claim already has a refunded payment row', async () => {
+    happyPath()
+    tasksRepository.fetchTaskById.mockResolvedValue(
+      makeTaskWithOwner({ status: 'in_progress', startedAt: new Date() }),
+    )
+    tasksRepository.fetchTaskMappingByTaskId.mockResolvedValue(
+      makeTaskMapping({ executorId: 'proxy-1' }),
+    )
+    paymentsRepository.fetchLatestByTaskId.mockResolvedValue({
+      status: 'refunded',
+    } as PaymentRecord)
+
+    await expectCode(
+      service.execute(args),
+      errorDictionary.payment.chargePending.errorCode,
+    )
+    expect(stripeService.chargeSavedCard).not.toHaveBeenCalled()
+    expect(tasksRepository.claimTask).not.toHaveBeenCalled()
+  })
+
+  it('refunds with the shared key and answers taskNotAvailable when the task was canceled during the charge', async () => {
+    happyPath()
+    paymentsRepository.recordSucceededCharge.mockResolvedValue({
+      id: 'pay-1',
+      taskId: 'task-1',
+    } as PaymentRecord)
+    tasksRepository.fetchClaim.mockResolvedValue({
+      status: 'canceled',
+      startedAt: null,
+      executorId: 'proxy-1',
+    })
+    stripeService.refundPaymentIntent.mockResolvedValue({
+      id: 're_1',
+      status: 'succeeded',
+    } as Awaited<ReturnType<StripeService['refundPaymentIntent']>>)
+
+    await expectCode(
+      service.execute(args),
+      errorDictionary.tasks.taskNotAvailable.errorCode,
+    )
+    expect(stripeService.refundPaymentIntent).toHaveBeenCalledWith(
+      'pi_1',
+      'task:task-1:refund',
+    )
+    expect(paymentsRepository.updateById).toHaveBeenCalledWith('pay-1', {
+      status: 'refunded',
+      refundId: 're_1',
+    })
+  })
+
+  it('leaves the row succeeded and logs when the refund does not succeed', async () => {
+    happyPath()
+    tasksRepository.fetchClaim.mockResolvedValue({
+      status: 'canceled',
+      startedAt: null,
+      executorId: 'proxy-1',
+    })
+    stripeService.refundPaymentIntent.mockResolvedValue({
+      id: 're_1',
+      status: 'failed',
+    } as Awaited<ReturnType<StripeService['refundPaymentIntent']>>)
+    const error = jest.spyOn(Logger.prototype, 'error').mockImplementation()
+
+    await expectCode(
+      service.execute(args),
+      errorDictionary.tasks.taskNotAvailable.errorCode,
+    )
+    expect(paymentsRepository.updateById).not.toHaveBeenCalled()
+    expect(error).toHaveBeenCalled()
+    error.mockRestore()
+  })
+
+  it('still answers taskNotAvailable when the refund of a canceled task throws', async () => {
+    happyPath()
+    tasksRepository.fetchClaim.mockResolvedValue({
+      status: 'canceled',
+      startedAt: null,
+      executorId: 'proxy-1',
+    })
+    stripeService.refundPaymentIntent.mockRejectedValue(new Error('down'))
+
+    await expectCode(
+      service.execute(args),
+      errorDictionary.tasks.taskNotAvailable.errorCode,
+    )
+    expect(paymentsRepository.updateById).not.toHaveBeenCalled()
   })
 
   it('answers chargePending and keeps the claim when this proxy holds the claim and the owner card is gone', async () => {

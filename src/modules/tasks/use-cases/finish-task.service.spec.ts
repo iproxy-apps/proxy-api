@@ -46,6 +46,7 @@ describe('FinishTaskService', () => {
     )
     paymentsRepository.fetchLatestByTaskId.mockResolvedValue({
       status: 'succeeded',
+      chargeId: 'ch_test_1',
     })
     tasksRepository.transition.mockResolvedValue(true)
   }
@@ -135,6 +136,29 @@ describe('FinishTaskService', () => {
     expect(storage.put).not.toHaveBeenCalled()
     expect(tasksRepository.transition).not.toHaveBeenCalled()
   })
+
+  it.each([
+    ['no payment row', null],
+    ['a pending payment', { status: 'pending', chargeId: null }],
+    [
+      'a succeeded payment without a charge id',
+      { status: 'succeeded', chargeId: null },
+    ],
+  ])(
+    'throws PAYMENT_NOT_CONFIRMED before any image work with %s',
+    async (_label, payment) => {
+      arrangeHappyPath()
+      paymentsRepository.fetchLatestByTaskId.mockResolvedValue(payment)
+
+      await expect(service.execute(input)).rejects.toMatchObject({
+        errorCode: errorDictionary.payment.notConfirmed.errorCode,
+      })
+
+      expect(normalizeProofImage).not.toHaveBeenCalled()
+      expect(storage.put).not.toHaveBeenCalled()
+      expect(tasksRepository.transition).not.toHaveBeenCalled()
+    },
+  )
 
   it('stores the normalised proof and transitions with a CAS from in_progress', async () => {
     arrangeHappyPath()

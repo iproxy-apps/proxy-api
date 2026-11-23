@@ -62,8 +62,8 @@ export class StartTaskService {
     // this proxy already holds the live claim: a replay must not need the card
     const ownClaim = task.status === 'in_progress'
     if (ownClaim) {
-      const latest = await this.paymentsRepository.fetchLatestByTaskId(taskId)
-      if (latest?.status === 'succeeded') return { status: 'succeeded' }
+      const replay = await this.replayOwnClaim(taskId)
+      if (replay) return replay
     }
 
     const notifyClient = async (): Promise<void> => {
@@ -126,8 +126,8 @@ export class StartTaskService {
         throw new AppException(errorDictionary.tasks.taskNotAvailable)
       }
 
-      const latest = await this.paymentsRepository.fetchLatestByTaskId(taskId)
-      if (latest?.status === 'succeeded') return { status: 'succeeded' }
+      const replay = await this.replayOwnClaim(taskId)
+      if (replay) return replay
 
       // resume the same claim: same key, same PaymentIntent
       startedAt = current.startedAt
@@ -184,6 +184,12 @@ export class StartTaskService {
           `start ${taskId}: payment ${paymentIntent.id} belongs to task ${row.taskId}`,
         )
       }
+      if (
+        row.taskId === taskId &&
+        (await this.refundIfCanceled(taskId, row.id, paymentIntent.id))
+      ) {
+        throw new AppException(errorDictionary.tasks.taskNotAvailable)
+      }
       return { status: 'succeeded' }
     }
 
@@ -202,5 +208,52 @@ export class StartTaskService {
       `start ${taskId}: charge outcome unknown (${errorType ?? paymentIntent?.status}), key ${key}`,
     )
     throw new AppException(errorDictionary.payment.chargePending)
+  }
+
+  // own claim: a succeeded payment is a replay; any other row blocks a second charge
+  private async replayOwnClaim(
+    taskId: string,
+  ): Promise<StartTaskResult | null> {
+    const latest = await this.paymentsRepository.fetchLatestByTaskId(taskId)
+    if (!latest) return null
+    if (latest.status === 'succeeded') return { status: 'succeeded' }
+    this.logger.error(
+      `start ${taskId}: claim held with a ${latest.status} payment row; no second charge`,
+    )
+    throw new AppException(errorDictionary.payment.chargePending)
+  }
+
+  // the task may have been canceled while the charge was in flight; the
+  // webhook path refunds with the same key, so a double attempt is harmless
+  private async refundIfCanceled(
+    taskId: string,
+    paymentId: string,
+    paymentIntentId: string,
+  ): Promise<boolean> {
+    const current = await this.tasksRepository.fetchClaim(taskId)
+    if (current?.status !== 'canceled') return false
+    try {
+      const refund = await this.stripeService.refundPaymentIntent(
+        paymentIntentId,
+        `task:${taskId}:refund`,
+      )
+      if (refund?.status === 'succeeded' || refund?.status === 'pending') {
+        await this.paymentsRepository.updateById(paymentId, {
+          status: 'refunded',
+          refundId: refund.id,
+        })
+        this.logger.warn(`start ${taskId}: charge on canceled task refunded`)
+      } else {
+        // row stays succeeded: the payment_intent.succeeded webhook retries with the same key
+        this.logger.error(
+          `start ${taskId}: refund of ${paymentIntentId} returned status ${refund?.status}`,
+        )
+      }
+    } catch (error) {
+      this.logger.error(
+        `start ${taskId}: refund of ${paymentIntentId} on canceled task failed: ${String(error)}`,
+      )
+    }
+    return true
   }
 }

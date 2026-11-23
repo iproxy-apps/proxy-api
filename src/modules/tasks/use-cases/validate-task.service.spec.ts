@@ -24,7 +24,7 @@ type TasksRepositoryMock = jest.Mocked<
 >
 
 type StripeServiceMock = jest.Mocked<
-  Pick<StripeService, 'createTransferFromCharge'>
+  Pick<StripeService, 'createTransferFromCharge' | 'findTransferByGroup'>
 >
 
 type PaymentsRepositoryMock = jest.Mocked<
@@ -92,6 +92,7 @@ describe('ValidateTaskService', () => {
       recordTransfer: jest.fn().mockResolvedValue(undefined),
     }
     stripeService = {
+      findTransferByGroup: jest.fn().mockResolvedValue(null),
       createTransferFromCharge: jest
         .fn()
         .mockResolvedValue({ id: 'tr_test_1' }),
@@ -277,6 +278,69 @@ describe('ValidateTaskService', () => {
     })
 
     expect(tasksRepository.transition).toHaveBeenLastCalledWith({
+      taskId: 'task-1',
+      from: ['completed'],
+      to: 'verification_required',
+    })
+    expect(tasksRepository.recordTransfer).not.toHaveBeenCalled()
+  })
+
+  it('reuses an existing transfer of the group instead of creating one', async () => {
+    seedHappyPath()
+    stripeService.findTransferByGroup.mockResolvedValue({
+      id: 'tr_existing',
+    } as Awaited<ReturnType<StripeService['findTransferByGroup']>>)
+    const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation()
+
+    await execute()
+
+    expect(stripeService.findTransferByGroup).toHaveBeenCalledWith('task-1')
+    expect(stripeService.createTransferFromCharge).not.toHaveBeenCalled()
+    expect(tasksRepository.recordTransfer).toHaveBeenCalledWith(
+      expect.objectContaining({ transferId: 'tr_existing' }),
+    )
+    expect(warn).toHaveBeenCalledWith(
+      'task task-1: reusing existing transfer tr_existing',
+    )
+    warn.mockRestore()
+  })
+
+  it.each([
+    ['reversed', { reversed: true, amount_reversed: 0 }],
+    ['partially reversed', { reversed: false, amount_reversed: 100 }],
+  ])('refuses to reuse a %s transfer and reverts', async (_label, extra) => {
+    seedHappyPath()
+    stripeService.findTransferByGroup.mockResolvedValue({
+      id: 'tr_rev',
+      ...extra,
+    } as Awaited<ReturnType<StripeService['findTransferByGroup']>>)
+    const error = jest.spyOn(Logger.prototype, 'error').mockImplementation()
+
+    await expect(execute()).rejects.toMatchObject({
+      errorCode: errorDictionary.tasks.transferFailed.errorCode,
+    })
+
+    expect(stripeService.createTransferFromCharge).not.toHaveBeenCalled()
+    expect(tasksRepository.recordTransfer).not.toHaveBeenCalled()
+    expect(tasksRepository.transition).toHaveBeenNthCalledWith(2, {
+      taskId: 'task-1',
+      from: ['completed'],
+      to: 'verification_required',
+    })
+    expect(error).toHaveBeenCalled()
+    error.mockRestore()
+  })
+
+  it('reverts and throws transferFailed when the transfer lookup throws', async () => {
+    seedHappyPath()
+    stripeService.findTransferByGroup.mockRejectedValue(new Error('list down'))
+
+    await expect(execute()).rejects.toMatchObject({
+      errorCode: errorDictionary.tasks.transferFailed.errorCode,
+    })
+
+    expect(stripeService.createTransferFromCharge).not.toHaveBeenCalled()
+    expect(tasksRepository.transition).toHaveBeenNthCalledWith(2, {
       taskId: 'task-1',
       from: ['completed'],
       to: 'verification_required',
