@@ -80,4 +80,13 @@ describe('GET /auth/session/refresh (e2e)', () => {
     expect(decoded).not.toHaveProperty('documentUrl')
     expect(decoded).not.toHaveProperty('isVerified')
   })
+
+  it('re-signs the access token without issuing a refresh token', async () => {
+    const user = await createUser(ctx.app, ctx.prisma)
+
+    const response = await refresh(user.token)
+
+    expect(response.status).toBe(200)
+    expect(Object.keys(response.body)).toEqual(['session'])
+  })
 })

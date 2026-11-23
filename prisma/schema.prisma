@@ -59,6 +59,7 @@ model Users {
   isDeleted          Boolean              @default(false)
   userTaskMappings   UserTaskMapping[]
   passwordResetCodes PasswordResetCodes[]
+  refreshTokens      RefreshTokens[]
   ratingsGiven       Ratings[]            @relation("RatingsGiven")
   ratingsReceived    Ratings[]            @relation("RatingsReceived")
 
@@ -201,4 +202,21 @@ model PasswordResetCodes {
   user Users @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("password_reset_codes")
+}
+
+model RefreshTokens {
+  id           String    @id @default(uuid()) @db.Uuid
+  userId       String    @db.Uuid
+  familyId     String    @db.Uuid
+  tokenHash    String    @unique
+  expiresAt    DateTime
+  revokedAt    DateTime?
+  replacedById String?   @db.Uuid
+  createdAt    DateTime  @default(now())
+
+  user Users @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([familyId])
+  @@map("refresh_tokens")
 }

@@ -209,16 +209,21 @@ export class AuthRepository implements AuthRepositoryDTO {
     hashedPassword: string,
     codeId: string,
   ): Promise<void> {
-    await this.prisma.$transaction([
-      this.prisma.users.update({
+    await this.prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${userId}))`
+      await tx.users.update({
         where: { id: userId },
         data: { password: hashedPassword },
-      }),
-      this.prisma.passwordResetCodes.update({
+      })
+      await tx.passwordResetCodes.update({
         where: { id: codeId },
         data: { state: 'used' },
-      }),
-    ])
+      })
+      await tx.refreshTokens.updateMany({
+        where: { userId, revokedAt: null },
+        data: { revokedAt: new Date() },
+      })
+    })
   }
 
   async updateUserPassword(

@@ -7,4 +7,5 @@ export const TRUNCATE_TABLES = [
   'stripe_events',
   'user_task_mapping',
   'password_reset_codes',
+  'refresh_tokens',
 ] as const

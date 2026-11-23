@@ -47,6 +47,11 @@ export type UsersUpdateInput = {
 
 export type AuthenticateServiceResponse = {
   session: string
+  refreshToken: string
+}
+
+export type AccessTokenResponse = {
+  session: string
 }
 
 export type UpdateUserProfileRepositoryPayload = {

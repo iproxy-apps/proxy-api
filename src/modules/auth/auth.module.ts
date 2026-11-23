@@ -5,6 +5,13 @@ import { PassportModule } from '@nestjs/passport'
 import { EnvModule } from 'src/env/env.module'
 import { EnvService } from 'src/env/env.service'
 import { JwtStrategy } from './utils/jwt.strategy'
+import { ACCESS_TOKEN_TTL } from './utils/refresh-token'
+import { LogoutService } from './use-cases/logout.service'
+import { IssueSessionService } from './use-cases/issue-session.service'
+import { LogoutController } from './controllers/logout.controller'
+import { RefreshAccessTokenService } from './use-cases/refresh-access-token.service'
+import { RefreshTokensRepository } from './repository/refresh-tokens.repository'
+import { RefreshAccessTokenController } from './controllers/refresh-access-token.controller'
 import { StripeModule } from 'src/stripe/stripe.module'
 import { AuthRepository } from './repository/auth.repository'
 import { AuthenticateService } from './use-cases/authenticate.service'
@@ -45,7 +52,7 @@ import { FetchMerchantDashboardLinkController } from './controllers/fetch-mercha
         const publicKey = env.get('JWT_PUBLIC_KEY')
 
         return {
-          signOptions: { algorithm: 'RS256' },
+          signOptions: { algorithm: 'RS256', expiresIn: ACCESS_TOKEN_TTL },
           privateKey: Buffer.from(privateKey, 'base64'),
           publicKey: Buffer.from(publicKey, 'base64'),
         }
@@ -59,6 +66,10 @@ import { FetchMerchantDashboardLinkController } from './controllers/fetch-mercha
     JwtStrategy,
     AuthRepository,
     TasksRepository,
+    RefreshTokensRepository,
+    IssueSessionService,
+    RefreshAccessTokenService,
+    LogoutService,
     AuthenticateService,
     RefreshSessionService,
     DeleteAccountService,
@@ -74,6 +85,8 @@ import { FetchMerchantDashboardLinkController } from './controllers/fetch-mercha
   ],
   controllers: [
     AuthenticateController,
+    RefreshAccessTokenController,
+    LogoutController,
     RefreshSessionController,
     CreateAccountController,
     DeleteAccountController,

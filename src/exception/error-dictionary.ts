@@ -10,6 +10,14 @@ export const errorDictionary = {
     errorCode: 'STANDARD_ERROR',
   } as const,
 
+  session: {
+    refreshInvalid: {
+      message: 'Sua sessão expirou. Entre novamente.',
+      statusCode: HttpStatus.UNAUTHORIZED,
+      errorCode: 'SESSION_REFRESH_INVALID',
+    } as const,
+  },
+
   user: {
     notClient: {
       message: 'Apenas clientes podem criar tarefas.',

@@ -1,15 +1,15 @@
 import { hash } from 'bcryptjs'
 import { Prisma } from '@prisma/client'
-import { JwtService } from '@nestjs/jwt'
 
 import { AuthenticateService } from './authenticate.service'
 import { AuthRepository } from '../repository/auth.repository'
+import { IssueSessionService } from './issue-session.service'
 import { errorDictionary } from 'src/exception/error-dictionary'
 
 import type { FindUserByEmailResult } from '../types'
 
 type AuthRepositoryMock = jest.Mocked<Pick<AuthRepository, 'findByEmail'>>
-type JwtServiceMock = jest.Mocked<Pick<JwtService, 'sign'>>
+type IssueSessionServiceMock = jest.Mocked<Pick<IssueSessionService, 'issue'>>
 
 const makeUser = async (
   overrides: Partial<FindUserByEmailResult> = {},
@@ -38,16 +38,16 @@ const makeUser = async (
 })
 
 describe('AuthenticateService', () => {
-  let jwtService: JwtServiceMock
+  let issueSession: IssueSessionServiceMock
   let service: AuthenticateService
   let authRepository: AuthRepositoryMock
 
   beforeEach(() => {
-    jwtService = { sign: jest.fn() }
+    issueSession = { issue: jest.fn() }
     authRepository = { findByEmail: jest.fn() }
 
     service = new AuthenticateService(
-      jwtService as unknown as JwtService,
+      issueSession as unknown as IssueSessionService,
       authRepository as unknown as AuthRepository,
     )
   })
@@ -61,7 +61,7 @@ describe('AuthenticateService', () => {
       errorCode: errorDictionary.user.notFound.errorCode,
     })
 
-    expect(jwtService.sign).not.toHaveBeenCalled()
+    expect(issueSession.issue).not.toHaveBeenCalled()
   })
 
   it('throws invalidCredentials when the password does not match', async () => {
@@ -73,12 +73,15 @@ describe('AuthenticateService', () => {
       errorCode: errorDictionary.user.invalidCredentials.errorCode,
     })
 
-    expect(jwtService.sign).not.toHaveBeenCalled()
+    expect(issueSession.issue).not.toHaveBeenCalled()
   })
 
-  it('returns a signed session with the expected payload on success', async () => {
+  it('issues a session and refresh token for the user on success', async () => {
     const user = await makeUser()
-    jwtService.sign.mockReturnValue('signed-token')
+    issueSession.issue.mockResolvedValue({
+      session: 'signed-token',
+      refreshToken: 'refresh-token',
+    })
     authRepository.findByEmail.mockResolvedValue(user)
 
     const result = await service.execute({
@@ -86,25 +89,10 @@ describe('AuthenticateService', () => {
       password: 'correct-password',
     })
 
-    expect(result).toEqual({ session: 'signed-token' })
-    expect(jwtService.sign).toHaveBeenCalledWith(
-      expect.objectContaining({
-        sub: user.id,
-        name: user.name,
-        email: user.email,
-        userType: user.userType,
-        rating: 0,
-        walletBalance: 0,
-        payoutIssue: false,
-        cardActionRequired: false,
-        termsAccepted: user.termsAccepted,
-        stripeAccountId: user.stripeAccountId,
-        stripeCustomerId: user.stripeCustomerId,
-        stripeAccountReady: user.stripeAccountReady,
-      }),
-    )
-    expect(jwtService.sign).toHaveBeenCalledWith(
-      expect.not.objectContaining({ documentType: expect.anything() }),
-    )
+    expect(result).toEqual({
+      session: 'signed-token',
+      refreshToken: 'refresh-token',
+    })
+    expect(issueSession.issue).toHaveBeenCalledWith(user)
   })
 })

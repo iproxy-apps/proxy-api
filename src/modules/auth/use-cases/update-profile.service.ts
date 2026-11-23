@@ -9,7 +9,7 @@ import { errorDictionary } from 'src/exception/error-dictionary'
 
 import type {
   UsersUpdateInput,
-  AuthenticateServiceResponse,
+  AccessTokenResponse,
   UpdateUserProfileRepositoryPayload,
 } from '../types'
 
@@ -20,7 +20,7 @@ export class UpdateProfileService {
     private authRepository: AuthRepository,
   ) {}
 
-  async execute(data: UsersUpdateInput): Promise<AuthenticateServiceResponse> {
+  async execute(data: UsersUpdateInput): Promise<AccessTokenResponse> {
     const { userId, password: newPassword, ...rest } = data
 
     const userDetails = await this.authRepository.fetchUserDetailsById(

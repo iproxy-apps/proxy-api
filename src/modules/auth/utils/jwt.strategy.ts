@@ -1,6 +1,7 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import { PassportStrategy } from '@nestjs/passport'
+import { z } from 'zod'
 import { ExtractJwt, Strategy } from 'passport-jwt'
 
 import { Env } from 'src/env/env'
@@ -10,6 +11,11 @@ import { sessionPayloadSchema } from './session-payload'
 import type { SessionPayload } from './session-payload'
 
 export type { SessionPayload }
+
+export const jwtClaimsSchema = sessionPayloadSchema.extend({
+  iat: z.number(),
+  exp: z.number(),
+})
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
@@ -27,16 +33,16 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   }
 
   async validate(payload: unknown): Promise<SessionPayload> {
-    const parsed = sessionPayloadSchema.safeParse(payload)
+    const parsed = jwtClaimsSchema.safeParse(payload)
     if (!parsed.success) throw new UnauthorizedException()
-    const session = parsed.data
+    const claims = parsed.data
 
     const user = await this.prisma.users.findUnique({
-      where: { id: session.sub },
-      select: { isDeleted: true },
+      where: { id: claims.sub },
+      select: { isDeleted: true, userType: true },
     })
     if (!user || user.isDeleted) throw new UnauthorizedException()
 
-    return session
+    return { ...claims, userType: user.userType }
   }
 }

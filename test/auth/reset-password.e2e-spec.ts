@@ -141,4 +141,74 @@ describe('POST /auth/reset-password (e2e)', () => {
       compare('second-password', updatedUser!.password),
     ).resolves.toBe(false)
   })
+
+  it('revokes every refresh token on reset', async () => {
+    const user = await createUser(ctx.app, ctx.prisma, { email: 'u@test.io' })
+    const login = async (password: string) =>
+      request(ctx.app.getHttpServer())
+        .post('/auth/session')
+        .send({ email: user.email, password })
+    const first = (await login('password123')).body.refreshToken as string
+    const second = (await login('password123')).body.refreshToken as string
+    await insertCode(user.id, '654321')
+
+    const reset = await request(ctx.app.getHttpServer())
+      .post('/auth/reset-password')
+      .send({
+        email: user.email,
+        code: '654321',
+        newPassword: 'my-new-password',
+      })
+    expect(reset.status).toBe(200)
+
+    for (const refreshToken of [first, second]) {
+      const response = await request(ctx.app.getHttpServer())
+        .post('/auth/refresh')
+        .send({ refreshToken })
+      expect(response.status).toBe(401)
+    }
+    expect(
+      await ctx.prisma.refreshTokens.count({
+        where: { userId: user.id, revokedAt: null },
+      }),
+    ).toBe(0)
+
+    const fresh = await login('my-new-password')
+    expect(fresh.status).toBe(200)
+    expect(typeof fresh.body.refreshToken).toBe('string')
+  })
+
+  it('a password reset leaves no live refresh token even when a rotation is in flight', async () => {
+    const user = await createUser(ctx.app, ctx.prisma, { email: 'u@test.io' })
+    const login = await request(ctx.app.getHttpServer())
+      .post('/auth/session')
+      .send({ email: user.email, password: 'password123' })
+    const old = login.body.refreshToken as string
+    await insertCode(user.id, '654321')
+
+    const [rotation] = await Promise.all([
+      request(ctx.app.getHttpServer())
+        .post('/auth/refresh')
+        .send({ refreshToken: old }),
+      request(ctx.app.getHttpServer()).post('/auth/reset-password').send({
+        email: user.email,
+        code: '654321',
+        newPassword: 'my-new-password',
+      }),
+    ])
+
+    expect(
+      await ctx.prisma.refreshTokens.count({
+        where: { userId: user.id, revokedAt: null },
+      }),
+    ).toBe(0)
+    const tokens = [old]
+    if (rotation.status === 200) tokens.push(rotation.body.refreshToken)
+    for (const refreshToken of tokens) {
+      const response = await request(ctx.app.getHttpServer())
+        .post('/auth/refresh')
+        .send({ refreshToken })
+      expect(response.status).toBe(401)
+    }
+  })
 })

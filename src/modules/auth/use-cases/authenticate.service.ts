@@ -1,11 +1,10 @@
 import { compare } from 'bcryptjs'
-import { JwtService } from '@nestjs/jwt'
 import { Injectable } from '@nestjs/common'
 
 import { AppException } from 'src/exception/app.exception'
 import { errorDictionary } from 'src/exception/error-dictionary'
 import { AuthRepository } from '../repository/auth.repository'
-import { buildSessionPayload } from '../utils/session-payload'
+import { IssueSessionService } from './issue-session.service'
 
 import type { AuthenticateServiceResponse } from '../types'
 
@@ -17,7 +16,7 @@ type AuthenticateServiceRequest = {
 @Injectable()
 export class AuthenticateService {
   constructor(
-    private jwt: JwtService,
+    private issueSessionService: IssueSessionService,
     private authRepository: AuthRepository,
   ) {}
 
@@ -38,8 +37,6 @@ export class AuthenticateService {
       throw new AppException(errorDictionary.user.invalidCredentials)
     }
 
-    const session = this.jwt.sign(buildSessionPayload(user))
-
-    return { session }
+    return await this.issueSessionService.issue(user)
   }
 }

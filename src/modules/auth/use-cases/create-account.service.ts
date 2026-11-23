@@ -8,11 +8,7 @@ import { AuthenticateService } from './authenticate.service'
 import { AuthRepository } from '../repository/auth.repository'
 import { errorDictionary } from 'src/exception/error-dictionary'
 
-import type { CreateAccountInput } from '../types'
-
-type CreateAccountServiceResponse = {
-  session: string
-}
+import type { CreateAccountInput, AuthenticateServiceResponse } from '../types'
 
 const errorText = (error: unknown): string =>
   error instanceof Error ? (error.stack ?? error.message) : String(error)
@@ -29,7 +25,7 @@ export class CreateAccountService {
 
   async execute(
     data: CreateAccountInput,
-  ): Promise<CreateAccountServiceResponse> {
+  ): Promise<AuthenticateServiceResponse> {
     const { email, password, name } = data
 
     const userExists = await this.authRepository.findByEmail(email)

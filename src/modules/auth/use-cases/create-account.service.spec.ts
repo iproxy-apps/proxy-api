@@ -76,7 +76,10 @@ describe('CreateAccountService', () => {
     stripeService.createCustomer.mockResolvedValue({
       id: 'cus_new',
     } as Awaited<ReturnType<StripeService['createCustomer']>>)
-    authenticateService.execute.mockResolvedValue({ session: 'token' })
+    authenticateService.execute.mockResolvedValue({
+      session: 'token',
+      refreshToken: 'refresh',
+    })
 
     await service.execute(
       makeCreateInput({ email: 'new@test.io', name: 'New User' }),
@@ -170,7 +173,10 @@ describe('CreateAccountService', () => {
     stripeService.createCustomer.mockResolvedValue({
       id: 'cus_x',
     } as Awaited<ReturnType<StripeService['createCustomer']>>)
-    authenticateService.execute.mockResolvedValue({ session: 'session-token' })
+    authenticateService.execute.mockResolvedValue({
+      session: 'session-token',
+      refreshToken: 'refresh-token',
+    })
 
     const input = makeCreateInput({
       email: 'hash@test.io',
@@ -190,6 +196,9 @@ describe('CreateAccountService', () => {
       email: 'hash@test.io',
       password: 'plaintext-password',
     })
-    expect(result).toEqual({ session: 'session-token' })
+    expect(result).toEqual({
+      session: 'session-token',
+      refreshToken: 'refresh-token',
+    })
   })
 })

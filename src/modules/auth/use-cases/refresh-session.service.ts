@@ -6,7 +6,7 @@ import { errorDictionary } from 'src/exception/error-dictionary'
 import { AuthRepository } from '../repository/auth.repository'
 import { buildSessionPayload } from '../utils/session-payload'
 
-import type { AuthenticateServiceResponse } from '../types'
+import type { AccessTokenResponse } from '../types'
 
 @Injectable()
 export class RefreshSessionService {
@@ -15,7 +15,7 @@ export class RefreshSessionService {
     private authRepository: AuthRepository,
   ) {}
 
-  async execute(userId: string): Promise<AuthenticateServiceResponse> {
+  async execute(userId: string): Promise<AccessTokenResponse> {
     const user = await this.authRepository.fetchUserDetailsById(userId)
 
     if (!user) throw new AppException(errorDictionary.user.notFound)
