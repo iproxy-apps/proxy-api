@@ -6,7 +6,6 @@ import { PrismaService } from 'src/prisma/prisma.service'
 import type {
   FindUserByEmailResult,
   UpdateUserProfileRepositoryPayload,
-  UsersUpdateInput,
 } from '../types'
 import type {
   AuthRepositoryDTO,
