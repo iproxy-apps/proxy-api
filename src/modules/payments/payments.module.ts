@@ -2,18 +2,26 @@ import { Module } from '@nestjs/common'
 
 import { EnvService } from 'src/env/env.service'
 import { StripeModule } from 'src/stripe/stripe.module'
-import { PrismaService } from 'src/prisma/prisma.service'
 import { PaymentsRepository } from './repository/payments.repository'
 import { CreatePaymentRecordService } from './use-cases/create-payment-record.service'
+import { FetchPaymentRecordService } from './use-cases/fetch-payment-record.service'
+import { UpdatePaymentRecordService } from './use-cases/update-payment-record.service'
 
 @Module({
   imports: [StripeModule.forRoot()],
   providers: [
     EnvService,
-    PrismaService,
     PaymentsRepository,
     CreatePaymentRecordService,
+    UpdatePaymentRecordService,
+    FetchPaymentRecordService,
   ],
   controllers: [],
+  exports: [
+    PaymentsRepository,
+    CreatePaymentRecordService,
+    UpdatePaymentRecordService,
+    FetchPaymentRecordService,
+  ],
 })
 export class PaymentsModule {}

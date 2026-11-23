@@ -2,7 +2,6 @@ import { Module } from '@nestjs/common'
 
 import { EnvService } from 'src/env/env.service'
 import { StripeModule } from 'src/stripe/stripe.module'
-import { PrismaService } from 'src/prisma/prisma.service'
 import { CardsRepository } from './repositories/cards.repository'
 import { AuthRepository } from '../auth/repository/auth.repository'
 import { FetchUserCardService } from './use-cases/fetch-user-card.service'
@@ -16,7 +15,6 @@ import { CreateUserPaymentMethodController } from './controllers/create-user-pay
   imports: [StripeModule.forRoot()],
   providers: [
     EnvService,
-    PrismaService,
     AuthRepository,
     CardsRepository,
     FetchUserCardService,

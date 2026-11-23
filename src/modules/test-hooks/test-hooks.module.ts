@@ -1,7 +1,6 @@
 import { Module } from '@nestjs/common'
 
 import { StripeModule } from 'src/stripe/stripe.module'
-import { PrismaService } from 'src/prisma/prisma.service'
 import { TestHooksGuard } from './test-hooks.guard'
 import { SeedUserService } from './use-cases/seed-user.service'
 import { ResetController } from './controllers/reset.controller'
@@ -10,7 +9,7 @@ import { MarkAccountReadyController } from './controllers/mark-account-ready.con
 
 @Module({
   imports: [StripeModule.forRoot()],
-  providers: [PrismaService, TestHooksGuard, SeedUserService],
+  providers: [TestHooksGuard, SeedUserService],
   controllers: [
     ResetController,
     SeedUserController,

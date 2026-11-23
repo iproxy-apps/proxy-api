@@ -7,7 +7,7 @@ import { envSchema } from './env/env'
 
 import { EnvModule } from './env/env.module'
 import { AuthModule } from './modules/auth/auth.module'
-import { PrismaService } from './prisma/prisma.service'
+import { PrismaModule } from './prisma/prisma.module'
 import { TasksModule } from './modules/tasks/tasks.module'
 import { CardsModule } from './modules/cards/cards.module'
 import { PaymentsModule } from './modules/payments/payments.module'
@@ -16,15 +16,14 @@ import { TestHooksModule } from './modules/test-hooks/test-hooks.module'
 import { StripeWebhookModule } from './modules/stripe-webhook/stripe-webhook.module'
 
 @Module({
-  providers: [
-    PrismaService,
-    { provide: APP_GUARD, useClass: ThrottlerGuard },
-  ],
+  providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
   imports: [
     ConfigModule.forRoot({
       validate: (env) => envSchema.parse(env),
       isGlobal: true,
     }),
+
+    PrismaModule,
 
     ThrottlerModule.forRoot({
       throttlers: [

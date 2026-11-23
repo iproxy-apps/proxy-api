@@ -1,7 +1,6 @@
 import { Module } from '@nestjs/common'
 
 import { StripeModule } from 'src/stripe/stripe.module'
-import { PrismaService } from 'src/prisma/prisma.service'
 
 import { AuthRepository } from '../auth/repository/auth.repository'
 import { TasksRepository } from '../tasks/repository/tasks.repository'
@@ -18,7 +17,6 @@ import { HandlePaymentSucceededService } from './use-cases/handle-payment-succee
 @Module({
   imports: [StripeModule.forRoot()],
   providers: [
-    PrismaService,
     AuthRepository,
     TasksRepository,
     StripeEventsRepository,

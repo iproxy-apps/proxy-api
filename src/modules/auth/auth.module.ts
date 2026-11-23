@@ -6,7 +6,6 @@ import { EnvModule } from 'src/env/env.module'
 import { EnvService } from 'src/env/env.service'
 import { JwtStrategy } from './utils/jwt.strategy'
 import { StripeModule } from 'src/stripe/stripe.module'
-import { PrismaService } from 'src/prisma/prisma.service'
 import { AuthRepository } from './repository/auth.repository'
 import { AuthenticateService } from './use-cases/authenticate.service'
 import { RefreshSessionService } from './use-cases/refresh-session.service'
@@ -58,7 +57,6 @@ import { FetchMerchantDashboardLinkController } from './controllers/fetch-mercha
   providers: [
     EnvService,
     JwtStrategy,
-    PrismaService,
     AuthRepository,
     TasksRepository,
     AuthenticateService,
