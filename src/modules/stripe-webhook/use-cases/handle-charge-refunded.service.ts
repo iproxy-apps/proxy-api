@@ -21,10 +21,18 @@ export class HandleChargeRefundedService {
     const full = charge.amount_refunded === charge.amount
 
     if (full) {
-      await this.prisma.payments.updateMany({
-        where: { paymentIntent: paymentIntentId },
+      const result = await this.prisma.payments.updateMany({
+        where: {
+          paymentIntent: paymentIntentId,
+          status: { in: ['succeeded', 'pending'] },
+        },
         data: { status: 'refunded', ...(refundId && { refundId }) },
       })
+      if (result.count === 0) {
+        this.logger.warn(
+          `full refund on ${paymentIntentId} ignored: payment is not succeeded/pending (disputed, failed or already refunded)`,
+        )
+      }
       return
     }
 

@@ -3,7 +3,6 @@ import { Module } from '@nestjs/common'
 import { StripeModule } from 'src/stripe/stripe.module'
 import { PaymentsModule } from '../payments/payments.module'
 
-import { AuthRepository } from '../auth/repository/auth.repository'
 import { TasksRepository } from '../tasks/repository/tasks.repository'
 import { StripeEventsRepository } from './repository/stripe-events.repository'
 import { StripeWebhookController } from './controllers/stripe-webhook.controller'
@@ -18,7 +17,6 @@ import { HandlePaymentSucceededService } from './use-cases/handle-payment-succee
 @Module({
   imports: [StripeModule.forRoot(), PaymentsModule],
   providers: [
-    AuthRepository,
     TasksRepository,
     StripeEventsRepository,
     HandlePayoutFailedService,

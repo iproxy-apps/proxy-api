@@ -197,22 +197,6 @@ export class TasksRepository implements TasksRepositoryDTO {
     })
   }
 
-  async fetchTaskByTransferId(
-    transferId: string,
-  ): Promise<FetchTasksResult | null> {
-    return await this.prisma.tasks.findUnique({
-      select: taskSelect,
-      where: { transferId },
-    })
-  }
-
-  async markPayoutFailed(taskId: string): Promise<void> {
-    await this.prisma.tasks.update({
-      where: { id: taskId },
-      data: { status: 'payout_failed', transferId: null },
-    })
-  }
-
   async transition(data: TransitionTaskData): Promise<boolean> {
     const result = await this.prisma.tasks.updateMany({
       where: { id: data.taskId, status: { in: data.from } },

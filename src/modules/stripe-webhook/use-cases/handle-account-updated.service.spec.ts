@@ -16,7 +16,7 @@ describe('HandleAccountUpdatedService', () => {
     service = new HandleAccountUpdatedService(prisma)
   })
 
-  it('marks the user as ready when both charges and payouts are enabled', async () => {
+  it('marks the user ready and clears payoutIssue when charges and payouts are enabled', async () => {
     await service.execute({
       id: 'acct_123',
       charges_enabled: true,
@@ -25,11 +25,11 @@ describe('HandleAccountUpdatedService', () => {
 
     expect(updateMany).toHaveBeenCalledWith({
       where: { stripeAccountId: 'acct_123' },
-      data: { stripeAccountReady: true },
+      data: { stripeAccountReady: true, payoutIssue: false },
     })
   })
 
-  it('marks the user as not ready when either flag is disabled', async () => {
+  it('marks the user not ready and keeps payoutIssue when payouts are disabled', async () => {
     await service.execute({
       id: 'acct_123',
       charges_enabled: true,
@@ -40,5 +40,14 @@ describe('HandleAccountUpdatedService', () => {
       where: { stripeAccountId: 'acct_123' },
       data: { stripeAccountReady: false },
     })
+  })
+
+  it('does not update anything when the account id is missing', async () => {
+    await service.execute({
+      charges_enabled: true,
+      payouts_enabled: true,
+    } as Stripe.Account)
+
+    expect(updateMany).not.toHaveBeenCalled()
   })
 })

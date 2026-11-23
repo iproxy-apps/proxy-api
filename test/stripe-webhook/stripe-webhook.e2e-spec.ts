@@ -474,10 +474,14 @@ describe('POST /stripe/webhook (e2e)', () => {
     expect(payment?.status).toBe('succeeded')
   })
 
-  it('flips stripeAccountReady on account.updated', async () => {
+  it('flips stripeAccountReady and clears payoutIssue on account.updated', async () => {
     const proxy = await createUser(ctx.app, ctx.prisma, {
       userType: 'PROXY',
       stripeAccountId: 'acct_ready',
+    })
+    await ctx.prisma.users.update({
+      where: { id: proxy.id },
+      data: { payoutIssue: true },
     })
 
     mockEvent('account.updated', {
@@ -493,9 +497,39 @@ describe('POST /stripe/webhook (e2e)', () => {
       where: { id: proxy.id },
     })
     expect(updated?.stripeAccountReady).toBe(true)
+    expect(updated?.payoutIssue).toBe(false)
   })
 
-  it('reverses the transfer and rolls back the executor on payout.failed', async () => {
+  it('ignores account.updated without an account id', async () => {
+    const a = await createUser(ctx.app, ctx.prisma, {
+      email: 'proxy-a@test.io',
+      userType: 'PROXY',
+      stripeAccountId: 'acct_a',
+      stripeAccountReady: false,
+    })
+    const b = await createUser(ctx.app, ctx.prisma, {
+      email: 'proxy-b@test.io',
+      userType: 'PROXY',
+      stripeAccountId: 'acct_b',
+      stripeAccountReady: false,
+    })
+
+    mockEvent('account.updated', {
+      charges_enabled: true,
+      payouts_enabled: true,
+    })
+
+    const response = await postWebhook()
+    expect(response.status).toBe(200)
+
+    const users = await ctx.prisma.users.findMany({
+      where: { id: { in: [a.id, b.id] } },
+    })
+    expect(users).toHaveLength(2)
+    expect(users.every((u) => u.stripeAccountReady === false)).toBe(true)
+  })
+
+  it('flags the proxy on payout.failed without touching tasks or wallet', async () => {
     const owner = await createUser(ctx.app, ctx.prisma, {
       email: 'owner-payout@test.io',
     })
@@ -527,12 +561,6 @@ describe('POST /stripe/webhook (e2e)', () => {
       data: { walletBalance: 200, totalTasksCompleted: 3 },
     })
 
-    ctx.stripeMock.listPayoutTransactions.mockResolvedValueOnce({
-      data: [{ source: { object: 'transfer', id: 'tr_payout_1' } }],
-    } as unknown as Awaited<
-      ReturnType<typeof ctx.stripeMock.listPayoutTransactions>
-    >)
-
     ctx.stripeMock.constructWebhookEvent.mockReturnValueOnce({
       id: 'evt_payout_failed_1',
       type: 'payout.failed',
@@ -545,19 +573,112 @@ describe('POST /stripe/webhook (e2e)', () => {
     const response = await postWebhook()
     expect(response.status).toBe(200)
 
-    expect(ctx.stripeMock.reverseTransfer).toHaveBeenCalledWith('tr_payout_1')
+    const updatedProxy = await ctx.prisma.users.findUnique({
+      where: { id: proxy.id },
+    })
+    expect(updatedProxy?.payoutIssue).toBe(true)
+    expect(updatedProxy?.walletBalance.toFixed(2)).toBe('200.00')
+    expect(updatedProxy?.totalTasksCompleted).toBe(3)
 
     const updatedTask = await ctx.prisma.tasks.findUnique({
       where: { id: task.id },
     })
-    expect(updatedTask?.status).toBe('payout_failed')
-    expect(updatedTask?.transferId).toBeNull()
+    expect(updatedTask?.status).toBe('completed')
+    expect(updatedTask?.transferId).toBe('tr_payout_1')
+  })
+
+  it('persists the dispute and freezes the payment on charge.dispute.created', async () => {
+    const { owner, proxy } = await seedUsers()
+    const task = await createTask(ctx.prisma, owner.id, {
+      status: 'completed',
+    })
+    await ctx.prisma.userTaskMapping.create({
+      data: { taskId: task.id, executorId: proxy.id },
+    })
+    await ctx.prisma.users.update({
+      where: { id: proxy.id },
+      data: { walletBalance: 100 },
+    })
+    await createPayment(ctx.prisma, task.id, {
+      status: 'succeeded',
+      paymentIntent: 'pi_disp',
+    })
+
+    mockEvent('charge.dispute.created', {
+      id: 'dp_1',
+      payment_intent: 'pi_disp',
+    })
+
+    const response = await postWebhook()
+    expect(response.status).toBe(200)
+
+    const payment = await ctx.prisma.payments.findFirst({
+      where: { paymentIntent: 'pi_disp' },
+    })
+    expect(payment?.status).toBe('disputed')
+    expect(payment?.disputeId).toBe('dp_1')
 
     const updatedProxy = await ctx.prisma.users.findUnique({
       where: { id: proxy.id },
     })
-    expect(Number(updatedProxy?.walletBalance)).toBeCloseTo(200 - 75.62, 1)
-    expect(updatedProxy?.totalTasksCompleted).toBe(2)
+    expect(updatedProxy?.walletBalance.toFixed(2)).toBe('100.00')
+  })
+
+  it('is idempotent for a second dispute event on the same payment', async () => {
+    const { owner } = await seedUsers()
+    const task = await createTask(ctx.prisma, owner.id, {
+      status: 'completed',
+    })
+    await createPayment(ctx.prisma, task.id, {
+      status: 'succeeded',
+      paymentIntent: 'pi_disp2',
+    })
+
+    mockEvent(
+      'charge.dispute.created',
+      { id: 'dp_1', payment_intent: 'pi_disp2' },
+      'evt_disp_a',
+    )
+    expect((await postWebhook()).status).toBe(200)
+    mockEvent(
+      'charge.dispute.created',
+      { id: 'dp_2', payment_intent: 'pi_disp2' },
+      'evt_disp_b',
+    )
+    expect((await postWebhook()).status).toBe(200)
+
+    const payment = await ctx.prisma.payments.findFirst({
+      where: { paymentIntent: 'pi_disp2' },
+    })
+    expect(payment?.status).toBe('disputed')
+    expect(payment?.disputeId).toBe('dp_1')
+  })
+
+  it('keeps a disputed payment disputed on a full charge.refunded', async () => {
+    const { owner } = await seedUsers()
+    const task = await createTask(ctx.prisma, owner.id, {
+      status: 'completed',
+    })
+    await createPayment(ctx.prisma, task.id, {
+      status: 'disputed',
+      paymentIntent: 'pi_keep',
+      disputeId: 'dp_keep',
+    })
+
+    mockEvent('charge.refunded', {
+      payment_intent: 'pi_keep',
+      amount: 5000,
+      amount_refunded: 5000,
+      refunds: { data: [{ id: 're_keep' }] },
+    })
+
+    expect((await postWebhook()).status).toBe(200)
+
+    const payment = await ctx.prisma.payments.findFirst({
+      where: { paymentIntent: 'pi_keep' },
+    })
+    expect(payment?.status).toBe('disputed')
+    expect(payment?.disputeId).toBe('dp_keep')
   })
 
   it('processes the same event only once, even concurrently', async () => {

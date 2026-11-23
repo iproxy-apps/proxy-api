@@ -19,14 +19,10 @@ export interface TasksRepositoryDTO {
   fetchActiveTasksForUser: (userId: string) => Promise<FetchTasksResult[]>
   insertTaskUserMapping: (taskId: string, executorId: string) => Promise<void>
   fetchTaskById: (data: FetchTaskByIdData) => Promise<FetchTasksResult | null>
-  fetchTaskByTransferId: (
-    transferId: string,
-  ) => Promise<FetchTasksResult | null>
   fetchTaskMappingByTaskId: (
     taskId: string,
   ) => Promise<FetchTaskUserMappingQueryData | null>
   fetchTaskCounterpartById: (userId: string) => Promise<TaskCounterpart | null>
-  markPayoutFailed: (taskId: string) => Promise<void>
   transition: (data: TransitionTaskData) => Promise<boolean>
   claimTask: (data: ClaimTaskData) => Promise<boolean>
   releaseClaim: (data: ReleaseClaimData) => Promise<boolean>

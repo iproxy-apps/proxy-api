@@ -17,54 +17,31 @@ export class HandleChargeDisputedService {
 
     if (!paymentIntentId) return
 
-    this.logger.warn(
-      `Dispute ${dispute.id} opened for payment intent ${paymentIntentId}`,
-    )
-
     const payment = await this.prisma.payments.findFirst({
       where: { paymentIntent: paymentIntentId },
       select: {
         id: true,
         taskId: true,
-        task: { select: { status: true, proxyEarnings: true } },
+        task: { select: { status: true } },
       },
     })
 
     if (!payment) return
 
-    const mapping = await this.prisma.userTaskMapping.findUnique({
-      where: { taskId: payment.taskId },
-      select: { executorId: true },
+    const result = await this.prisma.payments.updateMany({
+      where: { id: payment.id, status: { not: 'disputed' } },
+      data: { status: 'disputed', disputeId: dispute.id },
     })
 
-    const shouldReverseWallet =
-      payment.task.status === 'completed' &&
-      payment.task.proxyEarnings !== null &&
-      mapping !== null
-
-    if (!shouldReverseWallet) {
-      await this.prisma.payments.update({
-        where: { id: payment.id },
-        data: { status: 'disputed' },
-      })
+    if (result.count === 0) {
+      this.logger.warn(
+        `dispute ${dispute.id} ignored: payment ${payment.id} is already disputed`,
+      )
       return
     }
 
-    await this.prisma.$transaction([
-      this.prisma.payments.update({
-        where: { id: payment.id },
-        data: { status: 'disputed' },
-      }),
-      this.prisma.users.update({
-        where: { id: mapping.executorId },
-        data: {
-          walletBalance: { decrement: payment.task.proxyEarnings! },
-        },
-      }),
-    ])
-
     this.logger.warn(
-      `Reversed ${payment.task.proxyEarnings?.toString()} from executor ${mapping.executorId} due to dispute ${dispute.id}`,
+      `dispute ${dispute.id} on task ${payment.taskId} (${payment.task.status}) — manual review`,
     )
   }
 }

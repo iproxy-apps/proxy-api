@@ -36,7 +36,10 @@ describe('HandleChargeRefundedService', () => {
     )
 
     expect(updateMany).toHaveBeenCalledWith({
-      where: { paymentIntent: 'pi_123' },
+      where: {
+        paymentIntent: 'pi_123',
+        status: { in: ['succeeded', 'pending'] },
+      },
       data: { status: 'refunded', refundId: 're_abc' },
     })
   })
@@ -50,7 +53,10 @@ describe('HandleChargeRefundedService', () => {
     )
 
     expect(updateMany).toHaveBeenCalledWith({
-      where: { paymentIntent: 'pi_456' },
+      where: {
+        paymentIntent: 'pi_456',
+        status: { in: ['succeeded', 'pending'] },
+      },
       data: { status: 'refunded', refundId: 're_xyz' },
     })
   })
@@ -59,9 +65,30 @@ describe('HandleChargeRefundedService', () => {
     await service.execute(charge({ payment_intent: 'pi_789' }))
 
     expect(updateMany).toHaveBeenCalledWith({
-      where: { paymentIntent: 'pi_789' },
+      where: {
+        paymentIntent: 'pi_789',
+        status: { in: ['succeeded', 'pending'] },
+      },
       data: { status: 'refunded' },
     })
+  })
+
+  it('warns instead of refunding when the payment is not succeeded or pending', async () => {
+    updateMany.mockResolvedValueOnce({ count: 0 })
+    const warn = jest
+      .spyOn(service['logger'], 'warn')
+      .mockImplementation(() => {})
+
+    await service.execute(charge({ payment_intent: 'pi_disp' }))
+
+    expect(updateMany).toHaveBeenCalledWith({
+      where: {
+        paymentIntent: 'pi_disp',
+        status: { in: ['succeeded', 'pending'] },
+      },
+      data: { status: 'refunded' },
+    })
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('pi_disp'))
   })
 
   it('leaves the status alone on a partial refund', async () => {

@@ -10,6 +10,11 @@ export class HandleAccountUpdatedService {
   constructor(private prisma: PrismaService) {}
 
   async execute(account: Stripe.Account): Promise<void> {
+    if (!account.id) {
+      this.logger.warn('account.updated without an account id — ignored')
+      return
+    }
+
     const ready = Boolean(account.charges_enabled && account.payouts_enabled)
 
     this.logger.log(
@@ -18,7 +23,10 @@ export class HandleAccountUpdatedService {
 
     const result = await this.prisma.users.updateMany({
       where: { stripeAccountId: account.id },
-      data: { stripeAccountReady: ready },
+      data: {
+        stripeAccountReady: ready,
+        ...(account.payouts_enabled && { payoutIssue: false }),
+      },
     })
 
     this.logger.log(

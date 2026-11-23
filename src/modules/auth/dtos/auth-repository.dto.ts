@@ -10,11 +10,6 @@ export interface AuthRepositoryDTO {
   fetchUserDetailsById: (
     userId: string,
   ) => Promise<FindUserByEmailResult | null>
-  updateTotalTasksCompleted: (
-    userId: string,
-    totalTasksCompleted: number,
-  ) => Promise<void>
-  updateWalletBalance: (userId: string, walletBalance: number) => Promise<void>
   updateStripeAccountId: (
     userId: string,
     stripeAccountId: string,

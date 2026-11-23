@@ -130,17 +130,6 @@ export class StripeService {
     return await this.stripe.paymentMethods.detach(paymentMethodId)
   }
 
-  async reverseTransfer(transferId: string) {
-    return await this.stripe.transfers.createReversal(transferId)
-  }
-
-  async listPayoutTransactions(payoutId: string, accountId: string) {
-    return await this.stripe.balanceTransactions.list(
-      { payout: payoutId, expand: ['data.source'] },
-      { stripeAccount: accountId },
-    )
-  }
-
   async createMerchantAccount(data: CreateMerchantAccountData) {
     const { email, lastName, firstName, phoneNumber } = data
     return await this.stripe.accounts.create({

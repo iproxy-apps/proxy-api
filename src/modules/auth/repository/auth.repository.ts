@@ -54,23 +54,6 @@ export class AuthRepository implements AuthRepositoryDTO {
     return this.prisma.users.findUnique({ where: { id: userId } })
   }
 
-  async updateTotalTasksCompleted(userId: string, by: number): Promise<void> {
-    await this.prisma.users.update({
-      where: { id: userId },
-      data: { totalTasksCompleted: { increment: by } },
-    })
-  }
-
-  async updateWalletBalance(
-    userId: string,
-    walletBalance: number,
-  ): Promise<void> {
-    await this.prisma.users.update({
-      where: { id: userId },
-      data: { walletBalance },
-    })
-  }
-
   async updateStripeAccountId(
     userId: string,
     stripeAccountId: string,
