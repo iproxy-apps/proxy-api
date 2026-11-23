@@ -208,3 +208,16 @@ All audit reports, the release plan and the live status board for the 1.0 releas
 `proxy-app/docs/release-1.0/START-HERE.md` before touching code: it says what is done, what is in
 progress and what to pick up next. When you finish a task, update `STATUS.md` in that folder in the
 same change, so progress survives new sessions, machine switches and context compaction.
+
+## Loop dev stack
+
+Local stack for the autonomous simulator loop (Postgres compose container `proxy`, api on 3333 with test hooks, `stripe listen` forwarding webhooks). State lives in `.dev-stack/` (gitignored); `.env` is never rewritten.
+
+```bash
+scripts/dev-stack.sh up      # start (exit 0 ok, 1 precondition failed, 2 api timeout)
+scripts/dev-stack.sh status  # pids, listener, container, hooks
+scripts/dev-stack.sh logs    # tail api + stripe logs
+scripts/dev-stack.sh down    # stop only what `up` started (container is left running)
+```
+
+Test hooks (`/__test/*`) are live only under `dev-stack.sh up`; see `src/modules/test-hooks`.

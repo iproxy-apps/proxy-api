@@ -60,3 +60,4 @@ generated
 .env
 data
 src/tmp/
+.dev-stack/
