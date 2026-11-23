@@ -1,4 +1,6 @@
-import { Decimal } from 'src/modules/auth/types'
+import type { Prisma } from '@prisma/client'
+
+type Decimal = Prisma.Decimal
 
 export type PaymentStatus =
   | 'pending'
@@ -19,7 +21,23 @@ export type PaymentRecord = {
   amount: Decimal
   status: PaymentStatus
   paymentIntent: string
-  refundId?: string | null
+  refundId: string | null
+  chargeId: string | null
+  disputeId: string | null
   createdAt: Date
   updatedAt: Date
+}
+
+export type UpdatePaymentData = {
+  status?: PaymentStatus
+  refundId?: string | null
+  chargeId?: string | null
+  disputeId?: string | null
+}
+
+export type RecordSucceededChargeData = {
+  taskId: string
+  paymentIntent: string
+  amount: Decimal
+  chargeId: string | null
 }

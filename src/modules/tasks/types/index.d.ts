@@ -159,3 +159,36 @@ export type CancelTaskData = {
   taskId: string
   userId: string
 }
+
+export type TransitionTaskData = {
+  taskId: string
+  from: TaskStatus[]
+  to: TaskStatus
+  data?: {
+    startedAt?: Date | null
+    completedAt?: Date | null
+    canceledAt?: Date | null
+    proofImageUrl?: string | null
+    transferId?: string | null
+  }
+}
+
+export type ClaimTaskData = {
+  taskId: string
+  executorId: string
+  startedAt: Date
+}
+
+export type ReleaseClaimData = {
+  taskId: string
+  executorId: string
+  startedAt: Date
+  cardActionOwnerId?: string
+}
+
+export type RecordTransferData = {
+  taskId: string
+  executorId: string
+  transferId: string
+  proxyEarnings: Decimal
+}

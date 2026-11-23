@@ -3,7 +3,11 @@ import { Injectable } from '@nestjs/common'
 import { PrismaService } from 'src/prisma/prisma.service'
 
 import type {
+  ClaimTaskData,
   InsertTaskData,
+  ReleaseClaimData,
+  RecordTransferData,
+  TransitionTaskData,
   TaskCounterpart,
   FetchTasksResult,
   CreateTaskResult,
@@ -301,5 +305,60 @@ export class TasksRepository implements TasksRepositoryDTO {
       where: { id: taskId },
       data: { status: 'payout_failed', transferId: null },
     })
+  }
+
+  async transition(data: TransitionTaskData): Promise<boolean> {
+    const result = await this.prisma.tasks.updateMany({
+      where: { id: data.taskId, status: { in: data.from } },
+      data: { status: data.to, ...data.data },
+    })
+    return result.count === 1
+  }
+
+  async claimTask(data: ClaimTaskData): Promise<boolean> {
+    const { taskId, executorId, startedAt } = data
+    return await this.prisma.$transaction(async (tx) => {
+      const claimed = await tx.tasks.updateMany({
+        where: { id: taskId, status: 'available' },
+        data: { status: 'in_progress', startedAt },
+      })
+      if (claimed.count !== 1) return false
+      await tx.userTaskMapping.deleteMany({ where: { taskId } })
+      await tx.userTaskMapping.create({ data: { taskId, executorId } })
+      return true
+    })
+  }
+
+  async releaseClaim(data: ReleaseClaimData): Promise<boolean> {
+    const { taskId, executorId, startedAt, cardActionOwnerId } = data
+    return await this.prisma.$transaction(async (tx) => {
+      const released = await tx.tasks.updateMany({
+        where: { id: taskId, status: 'in_progress', startedAt },
+        data: { status: 'available', startedAt: null },
+      })
+      if (released.count !== 1) return false
+      await tx.userTaskMapping.deleteMany({ where: { taskId, executorId } })
+      if (cardActionOwnerId) {
+        await tx.users.update({
+          where: { id: cardActionOwnerId },
+          data: { cardActionRequired: true },
+        })
+      }
+      return true
+    })
+  }
+
+  async recordTransfer(data: RecordTransferData): Promise<void> {
+    const { taskId, executorId, transferId, proxyEarnings } = data
+    await this.prisma.$transaction([
+      this.prisma.tasks.update({ where: { id: taskId }, data: { transferId } }),
+      this.prisma.users.update({
+        where: { id: executorId },
+        data: {
+          totalTasksCompleted: { increment: 1 },
+          walletBalance: { increment: proxyEarnings },
+        },
+      }),
+    ])
   }
 }

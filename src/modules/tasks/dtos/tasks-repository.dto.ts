@@ -1,7 +1,11 @@
 import type {
+  ClaimTaskData,
   InsertTaskData,
   TaskCounterpart,
   FetchTasksResult,
+  ReleaseClaimData,
+  RecordTransferData,
+  TransitionTaskData,
   CreateTaskResult,
   FetchTaskByIdData,
   FetchTasksQueryData,
@@ -26,4 +30,8 @@ export interface TasksRepositoryDTO {
   fetchTaskCounterpartById: (userId: string) => Promise<TaskCounterpart | null>
   validateTaskCompletion: (data: ValidateTaskCompletionData) => Promise<void>
   markPayoutFailed: (taskId: string) => Promise<void>
+  transition: (data: TransitionTaskData) => Promise<boolean>
+  claimTask: (data: ClaimTaskData) => Promise<boolean>
+  releaseClaim: (data: ReleaseClaimData) => Promise<boolean>
+  recordTransfer: (data: RecordTransferData) => Promise<void>
 }

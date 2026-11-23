@@ -15,7 +15,7 @@ type TasksRepositoryMock = jest.Mocked<
   >
 >
 type PaymentsRepositoryMock = jest.Mocked<
-  Pick<PaymentsRepository, 'fetchPaymentRecord'>
+  Pick<PaymentsRepository, 'fetchLatestByTaskId'>
 >
 
 const makePayment = (overrides: Partial<PaymentRecord> = {}): PaymentRecord => ({
@@ -25,6 +25,8 @@ const makePayment = (overrides: Partial<PaymentRecord> = {}): PaymentRecord => (
   status: 'succeeded',
   paymentIntent: 'pi_test_1',
   refundId: null,
+  chargeId: null,
+  disputeId: null,
   createdAt: new Date(),
   updatedAt: new Date(),
   ...overrides,
@@ -45,7 +47,7 @@ describe('FetchTaskByIdService', () => {
       fetchTaskMappingByTaskId: jest.fn().mockResolvedValue(null),
       fetchTaskCounterpartById: jest.fn().mockResolvedValue(null),
     }
-    paymentsRepository = { fetchPaymentRecord: jest.fn().mockResolvedValue(null) }
+    paymentsRepository = { fetchLatestByTaskId: jest.fn().mockResolvedValue(null) }
 
     service = new FetchTaskByIdService(
       tasksRepository as unknown as TasksRepository,
@@ -111,11 +113,11 @@ describe('FetchTaskByIdService', () => {
     const task = makeTaskDetails({ id: 'task-1' })
     const payment = makePayment({ taskId: 'task-1', status: 'pending' })
     tasksRepository.fetchTaskById.mockResolvedValue(task)
-    paymentsRepository.fetchPaymentRecord.mockResolvedValue(payment)
+    paymentsRepository.fetchLatestByTaskId.mockResolvedValue(payment)
 
     const result = await service.execute('task-1', proxyRequester)
 
-    expect(paymentsRepository.fetchPaymentRecord).toHaveBeenCalledWith('task-1')
+    expect(paymentsRepository.fetchLatestByTaskId).toHaveBeenCalledWith('task-1')
     expect(result.payment).toBe(payment)
   })
 
@@ -153,7 +155,7 @@ describe('FetchTaskByIdService', () => {
       }),
     ).rejects.toMatchObject({ errorCode: 'TASK_NOT_FOUND' })
     // Payment lookup should not happen when auth fails.
-    expect(paymentsRepository.fetchPaymentRecord).not.toHaveBeenCalled()
+    expect(paymentsRepository.fetchLatestByTaskId).not.toHaveBeenCalled()
   })
 
   it('lets a PROXY view a task owned by any user', async () => {

@@ -41,7 +41,7 @@ export class FetchTaskByIdService {
     }
 
     const [payment, mapping] = await Promise.all([
-      this.paymentsRepository.fetchPaymentRecord(taskId),
+      this.paymentsRepository.fetchLatestByTaskId(taskId),
       this.tasksRepository.fetchTaskMappingByTaskId(taskId),
     ])
 

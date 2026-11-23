@@ -57,6 +57,7 @@ model Users {
   stripeAccountId     String?
   stripeAccountReady  Boolean       @default(false)
   payoutIssue         Boolean       @default(false)
+  cardActionRequired  Boolean       @default(false)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now()) @updatedAt
