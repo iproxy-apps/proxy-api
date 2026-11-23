@@ -3,6 +3,8 @@ import { Inject, Injectable } from '@nestjs/common'
 
 import type {
   LinkMerchantAccountData,
+  CreateTransferData,
+  ChargeSavedCardData,
   CreatePaymentIntentData,
   CreateMerchantAccountData,
 } from './types'
@@ -16,6 +18,8 @@ export class StripeService {
     private readonly apiKey: string,
     @Inject('STRIPE_WEBHOOK_SECRET')
     private readonly webhookSecret: string,
+    @Inject('STRIPE_CONNECT_WEBHOOK_SECRET')
+    private readonly connectWebhookSecret: string | null,
   ) {
     this.stripe = new Stripe(this.apiKey, {
       apiVersion: '2025-12-15.clover',
@@ -23,10 +27,86 @@ export class StripeService {
   }
 
   constructWebhookEvent(rawBody: Buffer | string, signature: string): Stripe.Event {
-    return this.stripe.webhooks.constructEvent(
-      rawBody,
-      signature,
-      this.webhookSecret,
+    try {
+      return this.stripe.webhooks.constructEvent(
+        rawBody,
+        signature,
+        this.webhookSecret,
+      )
+    } catch (firstError) {
+      if (this.connectWebhookSecret === null) throw firstError
+      try {
+        return this.stripe.webhooks.constructEvent(
+          rawBody,
+          signature,
+          this.connectWebhookSecret,
+        )
+      } catch {
+        // surface the platform-secret failure, not the fallback's
+        throw firstError
+      }
+    }
+  }
+
+  async createSetupIntent(customer: string): Promise<Stripe.SetupIntent> {
+    return await this.stripe.setupIntents.create({
+      customer,
+      usage: 'off_session',
+      payment_method_types: ['card'],
+    })
+  }
+
+  // Creates and confirms in one call with Stripe's default automatic capture (D3):
+  // a `succeeded` answer is a final charge. Never request manual capture here.
+  async chargeSavedCard(
+    data: ChargeSavedCardData,
+    idempotencyKey: string,
+  ): Promise<Stripe.PaymentIntent> {
+    return await this.stripe.paymentIntents.create(
+      {
+        amount: data.amount,
+        currency: 'brl',
+        customer: data.customer,
+        payment_method: data.paymentMethod,
+        payment_method_types: ['card'],
+        confirm: true,
+        off_session: true,
+        transfer_group: data.taskId,
+        metadata: {
+          taskId: data.taskId,
+          proxyId: data.proxyId,
+          claimedAt: data.claimedAt,
+        },
+      },
+      { idempotencyKey },
+    )
+  }
+
+  // Always a full refund (D7): no `amount`.
+  async refundPaymentIntent(
+    paymentIntentId: string,
+    idempotencyKey: string,
+  ): Promise<Stripe.Refund> {
+    return await this.stripe.refunds.create(
+      { payment_intent: paymentIntentId },
+      { idempotencyKey },
+    )
+  }
+
+  async createTransferFromCharge(
+    data: CreateTransferData,
+    idempotencyKey: string,
+  ): Promise<Stripe.Transfer> {
+    return await this.stripe.transfers.create(
+      {
+        amount: data.amount,
+        currency: 'brl',
+        destination: data.destination,
+        source_transaction: data.sourceTransaction,
+        transfer_group: data.transferGroup,
+        metadata: { taskId: data.taskId },
+      },
+      { idempotencyKey },
     )
   }
 

@@ -6,8 +6,22 @@ export const createStripeServiceMock = (): jest.Mocked<StripeService> =>
     createCustomer: jest.fn().mockResolvedValue({ id: 'cus_test_123' }),
     retrievePaymentMethod: jest.fn().mockResolvedValue({
       id: 'pm_test_123',
+      customer: 'cus_test_default',
       card: { brand: 'visa', last4: '4242' },
     }),
+    createSetupIntent: jest.fn().mockResolvedValue({
+      id: 'seti_test_123',
+      client_secret: 'seti_test_123_secret_abc',
+    }),
+    chargeSavedCard: jest.fn().mockResolvedValue({
+      id: 'pi_test_123',
+      status: 'succeeded',
+      latest_charge: 'ch_test_123',
+    }),
+    refundPaymentIntent: jest
+      .fn()
+      .mockResolvedValue({ id: 're_test_123', status: 'succeeded' }),
+    createTransferFromCharge: jest.fn().mockResolvedValue({ id: 'tr_test_123' }),
     attachPaymentMethodToCustomer: jest
       .fn()
       .mockResolvedValue({ id: 'pm_test_123' }),

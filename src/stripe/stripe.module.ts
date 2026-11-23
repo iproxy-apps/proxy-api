@@ -22,6 +22,12 @@ export class StripeModule {
           useFactory: (env: EnvService) => env.get('STRIPE_WEBHOOK_SECRET'),
           inject: [EnvService],
         },
+        {
+          provide: 'STRIPE_CONNECT_WEBHOOK_SECRET',
+          useFactory: (env: EnvService) =>
+            env.get('STRIPE_CONNECT_WEBHOOK_SECRET') ?? null,
+          inject: [EnvService],
+        },
       ],
       exports: [StripeService],
     }
