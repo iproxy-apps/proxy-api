@@ -138,6 +138,47 @@ describe('CancelTaskService', () => {
     expect(stripeService.refundPaymentIntent).not.toHaveBeenCalled()
   })
 
+  it('refunds a payment that appeared between the first read and the CAS', async () => {
+    tasksRepository.fetchTaskById.mockResolvedValue(
+      makeTaskDetails({ status: 'in_progress', startedAt: hoursAgo(0) }),
+    )
+    paymentsRepository.fetchLatestByTaskId
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(makePayment('succeeded'))
+    stripeService.refundPaymentIntent.mockResolvedValue(
+      refundResult('re_late', 'succeeded'),
+    )
+
+    await run()
+
+    expect(stripeService.refundPaymentIntent).toHaveBeenCalledWith(
+      'pi_123',
+      'task:task-1:refund',
+    )
+    expect(paymentsRepository.updateById).toHaveBeenCalledWith('pay-1', {
+      status: 'refunded',
+      refundId: 're_late',
+    })
+  })
+
+  it('reverts the CAS and throws PAYMENT_DISPUTED when the payment became disputed after it', async () => {
+    tasksRepository.fetchTaskById.mockResolvedValue(
+      makeTaskDetails({ status: 'in_progress', startedAt: hoursAgo(0) }),
+    )
+    paymentsRepository.fetchLatestByTaskId
+      .mockResolvedValueOnce(makePayment('succeeded'))
+      .mockResolvedValueOnce(makePayment('disputed'))
+
+    await expect(run()).rejects.toMatchObject({
+      errorCode: errorDictionary.payment.disputed.errorCode,
+    })
+
+    expect(tasksRepository.transition).toHaveBeenLastCalledWith(
+      expect.objectContaining({ from: ['canceled'], to: 'in_progress' }),
+    )
+    expect(stripeService.refundPaymentIntent).not.toHaveBeenCalled()
+  })
+
   it('throws statusConflict when the CAS to canceled loses the race', async () => {
     tasksRepository.fetchTaskById.mockResolvedValue(
       makeTaskDetails({ status: 'in_progress', startedAt: hoursAgo(0) }),

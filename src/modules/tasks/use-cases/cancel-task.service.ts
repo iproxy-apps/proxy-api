@@ -47,8 +47,9 @@ export class CancelTaskService {
     }
 
     // a disputed payment blocks the cancel before anything is written
-    const payment = await this.paymentsRepository.fetchLatestByTaskId(taskId)
-    if (payment?.status === 'disputed') {
+    const earlyPayment =
+      await this.paymentsRepository.fetchLatestByTaskId(taskId)
+    if (earlyPayment?.status === 'disputed') {
       throw new AppException(errorDictionary.payment.disputed)
     }
 
@@ -62,6 +63,25 @@ export class CancelTaskService {
     })
     if (!claimed) {
       throw new AppException(errorDictionary.tasks.statusConflict)
+    }
+
+    // re-read after the CAS: a succeeded webhook landing between the first read
+    // and the CAS would otherwise be refunded by neither side
+    const payment = await this.paymentsRepository.fetchLatestByTaskId(taskId)
+    if (payment?.status === 'disputed') {
+      try {
+        await this.tasksRepository.transition({
+          taskId,
+          from: ['canceled'],
+          to: originalStatus,
+          data: { canceledAt: null },
+        })
+      } catch (revertError) {
+        this.logger.error(
+          `revert of task ${taskId} to ${originalStatus} failed: ${String(revertError)}`,
+        )
+      }
+      throw new AppException(errorDictionary.payment.disputed)
     }
 
     let refunded: { paymentId: string; refundId: string } | null = null

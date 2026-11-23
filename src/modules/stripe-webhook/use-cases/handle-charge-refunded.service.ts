@@ -1,10 +1,12 @@
 import Stripe from 'stripe'
-import { Injectable } from '@nestjs/common'
+import { Injectable, Logger } from '@nestjs/common'
 
 import { PrismaService } from 'src/prisma/prisma.service'
 
 @Injectable()
 export class HandleChargeRefundedService {
+  private readonly logger = new Logger(HandleChargeRefundedService.name)
+
   constructor(private prisma: PrismaService) {}
 
   async execute(charge: Stripe.Charge): Promise<void> {
@@ -15,11 +17,25 @@ export class HandleChargeRefundedService {
 
     if (!paymentIntentId) return
 
-    const refundId = charge.refunds?.data[0]?.id ?? null
+    const refundId = charge.refunds?.data[0]?.id
+    const full = charge.amount_refunded === charge.amount
 
-    await this.prisma.payments.updateMany({
-      where: { paymentIntent: paymentIntentId },
-      data: { status: 'refunded', refundId },
-    })
+    if (full) {
+      await this.prisma.payments.updateMany({
+        where: { paymentIntent: paymentIntentId },
+        data: { status: 'refunded', ...(refundId && { refundId }) },
+      })
+      return
+    }
+
+    this.logger.warn(
+      `partial refund on ${paymentIntentId} (${charge.amount_refunded}/${charge.amount}); status unchanged`,
+    )
+    if (refundId) {
+      await this.prisma.payments.updateMany({
+        where: { paymentIntent: paymentIntentId },
+        data: { refundId },
+      })
+    }
   }
 }

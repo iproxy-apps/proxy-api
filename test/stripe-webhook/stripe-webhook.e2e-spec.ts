@@ -2,6 +2,7 @@ import Stripe from 'stripe'
 import request from 'supertest'
 
 import { createTask } from '../factories/task.factory'
+import { createPayment } from '../factories/payment.factory'
 import { createUser } from '../factories/user.factory'
 import { createTestApp, resetDatabase } from '../setup/test-app.factory'
 
@@ -20,6 +21,40 @@ describe('POST /stripe/webhook (e2e)', () => {
 
   beforeEach(async () => {
     await resetDatabase(ctx.prisma)
+    ctx.stripeMock.constructWebhookEvent.mockReset()
+    ctx.stripeMock.refundPaymentIntent.mockClear()
+  })
+
+  const seedUsers = async () => {
+    const owner = await createUser(ctx.app, ctx.prisma, {
+      email: 'owner@test.io',
+    })
+    const proxy = await createUser(ctx.app, ctx.prisma, {
+      email: 'proxy@test.io',
+      userType: 'PROXY',
+    })
+    return { owner, proxy }
+  }
+
+  // in_progress task claimed by `proxy` at T, no payment row yet
+  const claimedTask = async () => {
+    const { owner, proxy } = await seedUsers()
+    const T = new Date()
+    const task = await createTask(ctx.prisma, owner.id, {
+      status: 'in_progress',
+      offeredPrice: 100,
+      startedAt: T,
+    })
+    await ctx.prisma.userTaskMapping.create({
+      data: { taskId: task.id, executorId: proxy.id },
+    })
+    return { task, proxy, T }
+  }
+
+  const meta = (task: { id: string }, proxy: { id: string }, T: Date) => ({
+    taskId: task.id,
+    proxyId: proxy.id,
+    claimedAt: T.toISOString(),
   })
 
   const mockEvent = (
@@ -66,41 +101,149 @@ describe('POST /stripe/webhook (e2e)', () => {
     })
   })
 
-  it('marks a pending payment as succeeded on payment_intent.succeeded', async () => {
-    const owner = await createUser(ctx.app, ctx.prisma)
+  it('marks a legacy pending payment succeeded and stores the charge id', async () => {
+    const { owner } = await seedUsers()
     const task = await createTask(ctx.prisma, owner.id, {
       status: 'in_progress',
       startedAt: new Date(),
     })
-    const payment = await ctx.prisma.payments.create({
-      data: {
-        taskId: task.id,
-        paymentIntent: 'pi_evt_1',
-        amount: 50,
-      },
+    const payment = await createPayment(ctx.prisma, task.id, {
+      paymentIntent: 'pi_evt_1',
+      status: 'pending',
     })
 
-    mockEvent('payment_intent.succeeded', { id: 'pi_evt_1' })
+    mockEvent('payment_intent.succeeded', {
+      id: 'pi_evt_1',
+      amount: 5000,
+      latest_charge: 'ch_evt_1',
+    })
 
     const response = await postWebhook()
 
     expect(response.status).toBe(200)
     expect(response.body).toEqual({ received: true })
-
     const updated = await ctx.prisma.payments.findUnique({
       where: { id: payment.id },
     })
     expect(updated?.status).toBe('succeeded')
+    expect(updated?.chargeId).toBe('ch_evt_1')
   })
 
-  it('reverts task and marks payment failed on payment_intent.payment_failed', async () => {
-    const owner = await createUser(ctx.app, ctx.prisma, {
-      email: 'owner@test.io',
+  it('writes the payment row from metadata when start has not written it yet', async () => {
+    const { task, proxy, T } = await claimedTask()
+
+    mockEvent('payment_intent.succeeded', {
+      id: 'pi_evt_meta',
+      amount: 10000,
+      latest_charge: 'ch_evt_meta',
+      metadata: meta(task, proxy, T),
     })
-    const proxy = await createUser(ctx.app, ctx.prisma, {
-      email: 'proxy@test.io',
-      userType: 'PROXY',
+
+    const response = await postWebhook()
+
+    expect(response.status).toBe(200)
+    const payments = await ctx.prisma.payments.findMany({
+      where: { taskId: task.id },
     })
+    expect(payments).toHaveLength(1)
+    expect(payments[0].status).toBe('succeeded')
+    expect(payments[0].chargeId).toBe('ch_evt_meta')
+    expect(payments[0].amount.toFixed(2)).toBe('100.00')
+    const after = await ctx.prisma.tasks.findUnique({ where: { id: task.id } })
+    expect(after?.status).toBe('in_progress')
+  })
+
+  it('is a no-op when start already wrote the row', async () => {
+    const { owner } = await seedUsers()
+    const task = await createTask(ctx.prisma, owner.id, {
+      status: 'in_progress',
+      startedAt: new Date(),
+    })
+    await createPayment(ctx.prisma, task.id, {
+      paymentIntent: 'pi_evt_dup',
+      status: 'succeeded',
+      chargeId: 'ch_dup',
+    })
+
+    mockEvent('payment_intent.succeeded', {
+      id: 'pi_evt_dup',
+      amount: 5000,
+      latest_charge: 'ch_dup',
+      metadata: { taskId: task.id },
+    })
+
+    const response = await postWebhook()
+
+    expect(response.status).toBe(200)
+    const payments = await ctx.prisma.payments.findMany({
+      where: { taskId: task.id },
+    })
+    expect(payments).toHaveLength(1)
+    expect(payments[0].chargeId).toBe('ch_dup')
+    expect(ctx.stripeMock.refundPaymentIntent).not.toHaveBeenCalled()
+  })
+
+  it('refunds a charge that lands on a canceled task', async () => {
+    const { owner, proxy } = await seedUsers()
+    const task = await createTask(ctx.prisma, owner.id, {
+      status: 'canceled',
+      canceledAt: new Date(),
+    })
+
+    mockEvent('payment_intent.succeeded', {
+      id: 'pi_evt_late',
+      amount: 5000,
+      latest_charge: 'ch_late',
+      metadata: {
+        taskId: task.id,
+        proxyId: proxy.id,
+        claimedAt: new Date().toISOString(),
+      },
+    })
+
+    const response = await postWebhook()
+
+    expect(response.status).toBe(200)
+    expect(ctx.stripeMock.refundPaymentIntent).toHaveBeenCalledWith(
+      'pi_evt_late',
+      `task:${task.id}:refund`,
+    )
+    const payment = await ctx.prisma.payments.findUnique({
+      where: { paymentIntent: 'pi_evt_late' },
+    })
+    expect(payment?.status).toBe('refunded')
+    expect(payment?.refundId).toBe('re_test_123')
+  })
+
+  it('does not touch a failed payment on payment_intent.succeeded', async () => {
+    const { owner } = await seedUsers()
+    const task = await createTask(ctx.prisma, owner.id, {
+      status: 'available',
+    })
+    await createPayment(ctx.prisma, task.id, {
+      paymentIntent: 'pi_evt_failed',
+      status: 'failed',
+    })
+
+    mockEvent('payment_intent.succeeded', {
+      id: 'pi_evt_failed',
+      amount: 5000,
+      latest_charge: 'ch_x',
+      metadata: { taskId: task.id },
+    })
+
+    const response = await postWebhook()
+
+    expect(response.status).toBe(200)
+    const payment = await ctx.prisma.payments.findUnique({
+      where: { paymentIntent: 'pi_evt_failed' },
+    })
+    expect(payment?.status).toBe('failed')
+    expect(payment?.chargeId).toBeNull()
+  })
+
+  it('reverts an in_progress task on payment_failed only while the legacy payment is pending', async () => {
+    const { owner, proxy } = await seedUsers()
     const task = await createTask(ctx.prisma, owner.id, {
       status: 'in_progress',
       startedAt: new Date(),
@@ -108,12 +251,9 @@ describe('POST /stripe/webhook (e2e)', () => {
     await ctx.prisma.userTaskMapping.create({
       data: { taskId: task.id, executorId: proxy.id },
     })
-    await ctx.prisma.payments.create({
-      data: {
-        taskId: task.id,
-        paymentIntent: 'pi_evt_2',
-        amount: 50,
-      },
+    await createPayment(ctx.prisma, task.id, {
+      paymentIntent: 'pi_evt_2',
+      status: 'pending',
     })
 
     mockEvent('payment_intent.payment_failed', { id: 'pi_evt_2' })
@@ -126,34 +266,147 @@ describe('POST /stripe/webhook (e2e)', () => {
     })
     expect(updatedTask?.status).toBe('available')
     expect(updatedTask?.startedAt).toBeNull()
-
     const mapping = await ctx.prisma.userTaskMapping.findUnique({
       where: { taskId: task.id },
     })
     expect(mapping).toBeNull()
-
     const payment = await ctx.prisma.payments.findFirst({
       where: { paymentIntent: 'pi_evt_2' },
     })
     expect(payment?.status).toBe('failed')
   })
 
-  it('marks payment as refunded on charge.refunded', async () => {
-    const owner = await createUser(ctx.app, ctx.prisma)
+  it('leaves a verification_required task untouched on payment_failed', async () => {
+    const { owner, proxy } = await seedUsers()
+    const task = await createTask(ctx.prisma, owner.id, {
+      status: 'verification_required',
+      startedAt: new Date(),
+    })
+    await ctx.prisma.userTaskMapping.create({
+      data: { taskId: task.id, executorId: proxy.id },
+    })
+    await createPayment(ctx.prisma, task.id, {
+      paymentIntent: 'pi_evt_vr',
+      status: 'pending',
+    })
+
+    mockEvent('payment_intent.payment_failed', { id: 'pi_evt_vr' })
+
+    const response = await postWebhook()
+    expect(response.status).toBe(200)
+
+    const updatedTask = await ctx.prisma.tasks.findUnique({
+      where: { id: task.id },
+    })
+    expect(updatedTask?.status).toBe('verification_required')
+    const mapping = await ctx.prisma.userTaskMapping.findUnique({
+      where: { taskId: task.id },
+    })
+    expect(mapping).not.toBeNull()
+    const payment = await ctx.prisma.payments.findFirst({
+      where: { paymentIntent: 'pi_evt_vr' },
+    })
+    expect(payment?.status).toBe('failed')
+  })
+
+  it('ignores payment_failed for an already succeeded payment', async () => {
+    const { owner, proxy } = await seedUsers()
+    const task = await createTask(ctx.prisma, owner.id, {
+      status: 'in_progress',
+      startedAt: new Date(),
+    })
+    await ctx.prisma.userTaskMapping.create({
+      data: { taskId: task.id, executorId: proxy.id },
+    })
+    await createPayment(ctx.prisma, task.id, {
+      paymentIntent: 'pi_evt_ok',
+      status: 'succeeded',
+    })
+
+    mockEvent('payment_intent.payment_failed', {
+      id: 'pi_evt_ok',
+      metadata: meta(task, proxy, task.startedAt as Date),
+    })
+
+    const response = await postWebhook()
+    expect(response.status).toBe(200)
+
+    const payment = await ctx.prisma.payments.findFirst({
+      where: { paymentIntent: 'pi_evt_ok' },
+    })
+    expect(payment?.status).toBe('succeeded')
+    const updatedTask = await ctx.prisma.tasks.findUnique({
+      where: { id: task.id },
+    })
+    expect(updatedTask?.status).toBe('in_progress')
+    const mapping = await ctx.prisma.userTaskMapping.findUnique({
+      where: { taskId: task.id },
+    })
+    expect(mapping).not.toBeNull()
+  })
+
+  it('releases the open claim named by metadata when no payment row exists', async () => {
+    const { task, proxy, T } = await claimedTask()
+
+    mockEvent('payment_intent.payment_failed', {
+      id: 'pi_evt_fail',
+      metadata: meta(task, proxy, T),
+    })
+
+    const response = await postWebhook()
+    expect(response.status).toBe(200)
+
+    const updatedTask = await ctx.prisma.tasks.findUnique({
+      where: { id: task.id },
+    })
+    expect(updatedTask?.status).toBe('available')
+    expect(updatedTask?.startedAt).toBeNull()
+    const mapping = await ctx.prisma.userTaskMapping.findUnique({
+      where: { taskId: task.id },
+    })
+    expect(mapping).toBeNull()
+    expect(
+      await ctx.prisma.payments.count({ where: { taskId: task.id } }),
+    ).toBe(0)
+  })
+
+  it('ignores payment_failed metadata for a claim that is no longer open', async () => {
+    const { task, proxy, T } = await claimedTask()
+
+    mockEvent('payment_intent.payment_failed', {
+      id: 'pi_evt_stale',
+      metadata: meta(task, proxy, new Date(T.getTime() - 60_000)),
+    })
+
+    const response = await postWebhook()
+    expect(response.status).toBe(200)
+
+    const updatedTask = await ctx.prisma.tasks.findUnique({
+      where: { id: task.id },
+    })
+    expect(updatedTask?.status).toBe('in_progress')
+    expect(updatedTask?.startedAt?.getTime()).toBe(T.getTime())
+    const mapping = await ctx.prisma.userTaskMapping.findUnique({
+      where: { taskId: task.id },
+    })
+    expect(mapping).not.toBeNull()
+  })
+
+  it('marks payment refunded on a full charge.refunded', async () => {
+    const { owner } = await seedUsers()
     const task = await createTask(ctx.prisma, owner.id, {
       status: 'canceled',
       startedAt: new Date(),
     })
-    await ctx.prisma.payments.create({
-      data: {
-        taskId: task.id,
-        paymentIntent: 'pi_evt_3',
-        amount: 50,
-      },
+    await createPayment(ctx.prisma, task.id, {
+      paymentIntent: 'pi_evt_3',
+      status: 'succeeded',
     })
 
     mockEvent('charge.refunded', {
       payment_intent: 'pi_evt_3',
+      amount: 5000,
+      amount_refunded: 5000,
       refunds: { data: [{ id: 're_abc' }] },
     })
 
@@ -165,6 +418,60 @@ describe('POST /stripe/webhook (e2e)', () => {
     })
     expect(payment?.status).toBe('refunded')
     expect(payment?.refundId).toBe('re_abc')
+  })
+
+  it('keeps the stored refundId when charge.refunded has no refunds list', async () => {
+    const { owner } = await seedUsers()
+    const task = await createTask(ctx.prisma, owner.id, {
+      status: 'canceled',
+      startedAt: new Date(),
+    })
+    await createPayment(ctx.prisma, task.id, {
+      paymentIntent: 'pi_evt_kept',
+      status: 'succeeded',
+      refundId: 're_kept',
+    })
+
+    mockEvent('charge.refunded', {
+      payment_intent: 'pi_evt_kept',
+      amount: 5000,
+      amount_refunded: 5000,
+    })
+
+    const response = await postWebhook()
+    expect(response.status).toBe(200)
+
+    const payment = await ctx.prisma.payments.findFirst({
+      where: { paymentIntent: 'pi_evt_kept' },
+    })
+    expect(payment?.status).toBe('refunded')
+    expect(payment?.refundId).toBe('re_kept')
+  })
+
+  it('does not mark a partial refund as refunded', async () => {
+    const { owner } = await seedUsers()
+    const task = await createTask(ctx.prisma, owner.id, {
+      status: 'in_progress',
+      startedAt: new Date(),
+    })
+    await createPayment(ctx.prisma, task.id, {
+      paymentIntent: 'pi_evt_part',
+      status: 'succeeded',
+    })
+
+    mockEvent('charge.refunded', {
+      payment_intent: 'pi_evt_part',
+      amount: 5000,
+      amount_refunded: 2500,
+    })
+
+    const response = await postWebhook()
+    expect(response.status).toBe(200)
+
+    const payment = await ctx.prisma.payments.findFirst({
+      where: { paymentIntent: 'pi_evt_part' },
+    })
+    expect(payment?.status).toBe('succeeded')
   })
 
   it('flips stripeAccountReady on account.updated', async () => {
@@ -253,31 +560,33 @@ describe('POST /stripe/webhook (e2e)', () => {
     expect(updatedProxy?.totalTasksCompleted).toBe(2)
   })
 
-  it('processes the same event only once (idempotency)', async () => {
-    const owner = await createUser(ctx.app, ctx.prisma)
+  it('processes the same event only once, even concurrently', async () => {
+    const { owner } = await seedUsers()
     const task = await createTask(ctx.prisma, owner.id, {
       status: 'in_progress',
       startedAt: new Date(),
     })
-    await ctx.prisma.payments.create({
-      data: {
-        taskId: task.id,
-        paymentIntent: 'pi_evt_idem',
-        amount: 50,
-      },
+    await createPayment(ctx.prisma, task.id, {
+      paymentIntent: 'pi_evt_idem',
+      status: 'pending',
     })
 
-    const eventId = 'evt_idempotent'
-    mockEvent('payment_intent.succeeded', { id: 'pi_evt_idem' }, eventId)
-    const firstResponse = await postWebhook()
-    expect(firstResponse.status).toBe(200)
+    ctx.stripeMock.constructWebhookEvent.mockReturnValue({
+      id: 'evt_idem',
+      type: 'payment_intent.succeeded',
+      data: {
+        object: { id: 'pi_evt_idem', amount: 5000, latest_charge: 'ch_idem' },
+      },
+    } as unknown as Stripe.Event)
 
-    mockEvent('payment_intent.succeeded', { id: 'pi_evt_idem' }, eventId)
-    const secondResponse = await postWebhook()
-    expect(secondResponse.status).toBe(200)
+    const [a, b] = await Promise.all([postWebhook(), postWebhook()])
 
-    const stored = await ctx.prisma.stripeEvents.findMany()
-    expect(stored).toHaveLength(1)
-    expect(stored[0].id).toBe(eventId)
+    expect(a.status).toBe(200)
+    expect(b.status).toBe(200)
+    expect(await ctx.prisma.stripeEvents.count()).toBe(1)
+    const payment = await ctx.prisma.payments.findUnique({
+      where: { paymentIntent: 'pi_evt_idem' },
+    })
+    expect(payment?.status).toBe('succeeded')
   })
 })

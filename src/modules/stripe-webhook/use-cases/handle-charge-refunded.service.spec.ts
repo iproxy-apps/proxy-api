@@ -7,26 +7,33 @@ describe('HandleChargeRefundedService', () => {
   let service: HandleChargeRefundedService
   let updateMany: jest.Mock
 
+  const charge = (extra: Record<string, unknown>) =>
+    ({
+      amount: 5000,
+      amount_refunded: 5000,
+      ...extra,
+    }) as unknown as Stripe.Charge
+
   beforeEach(() => {
     updateMany = jest.fn().mockResolvedValue({ count: 1 })
-    const prisma = {
+    service = new HandleChargeRefundedService({
       payments: { updateMany },
-    } as unknown as PrismaService
-
-    service = new HandleChargeRefundedService(prisma)
+    } as unknown as PrismaService)
   })
 
   it('is a no-op when the charge has no payment_intent', async () => {
-    await service.execute({ payment_intent: null } as unknown as Stripe.Charge)
+    await service.execute(charge({ payment_intent: null }))
 
     expect(updateMany).not.toHaveBeenCalled()
   })
 
-  it('marks the payment as refunded and stores the refund id (string payment_intent)', async () => {
-    await service.execute({
-      payment_intent: 'pi_123',
-      refunds: { data: [{ id: 're_abc' }] },
-    } as unknown as Stripe.Charge)
+  it('marks the payment refunded and stores the refund id on a full refund', async () => {
+    await service.execute(
+      charge({
+        payment_intent: 'pi_123',
+        refunds: { data: [{ id: 're_abc' }] },
+      }),
+    )
 
     expect(updateMany).toHaveBeenCalledWith({
       where: { paymentIntent: 'pi_123' },
@@ -35,10 +42,12 @@ describe('HandleChargeRefundedService', () => {
   })
 
   it('accepts an expanded payment_intent object', async () => {
-    await service.execute({
-      payment_intent: { id: 'pi_456' },
-      refunds: { data: [{ id: 're_xyz' }] },
-    } as unknown as Stripe.Charge)
+    await service.execute(
+      charge({
+        payment_intent: { id: 'pi_456' },
+        refunds: { data: [{ id: 're_xyz' }] },
+      }),
+    )
 
     expect(updateMany).toHaveBeenCalledWith({
       where: { paymentIntent: 'pi_456' },
@@ -46,14 +55,35 @@ describe('HandleChargeRefundedService', () => {
     })
   })
 
-  it('handles charges without refunds present', async () => {
-    await service.execute({
-      payment_intent: 'pi_789',
-    } as unknown as Stripe.Charge)
+  it('does not overwrite the stored refund id when none is listed', async () => {
+    await service.execute(charge({ payment_intent: 'pi_789' }))
 
     expect(updateMany).toHaveBeenCalledWith({
       where: { paymentIntent: 'pi_789' },
-      data: { status: 'refunded', refundId: null },
+      data: { status: 'refunded' },
     })
+  })
+
+  it('leaves the status alone on a partial refund', async () => {
+    await service.execute(
+      charge({
+        payment_intent: 'pi_part',
+        amount_refunded: 2500,
+        refunds: { data: [{ id: 're_part' }] },
+      }),
+    )
+
+    expect(updateMany).toHaveBeenCalledWith({
+      where: { paymentIntent: 'pi_part' },
+      data: { refundId: 're_part' },
+    })
+  })
+
+  it('does nothing on a partial refund without a refund id', async () => {
+    await service.execute(
+      charge({ payment_intent: 'pi_part', amount_refunded: 2500 }),
+    )
+
+    expect(updateMany).not.toHaveBeenCalled()
   })
 })

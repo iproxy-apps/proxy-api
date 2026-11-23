@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common'
 
 import { StripeModule } from 'src/stripe/stripe.module'
+import { PaymentsModule } from '../payments/payments.module'
 
 import { AuthRepository } from '../auth/repository/auth.repository'
 import { TasksRepository } from '../tasks/repository/tasks.repository'
@@ -15,7 +16,7 @@ import { HandleChargeRefundedService } from './use-cases/handle-charge-refunded.
 import { HandlePaymentSucceededService } from './use-cases/handle-payment-succeeded.service'
 
 @Module({
-  imports: [StripeModule.forRoot()],
+  imports: [StripeModule.forRoot(), PaymentsModule],
   providers: [
     AuthRepository,
     TasksRepository,

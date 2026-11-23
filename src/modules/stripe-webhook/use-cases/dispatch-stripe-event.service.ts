@@ -42,14 +42,31 @@ export class DispatchStripeEventService {
 
     this.logger.log(`Dispatching Stripe event ${event.id} (${event.type})`)
 
-    const alreadyProcessed = await this.stripeEventsRepository.wasProcessed(
+    const claimed = await this.stripeEventsRepository.tryMarkProcessed(
       event.id,
+      event.type,
     )
-    if (alreadyProcessed) {
+    if (!claimed) {
       this.logger.log(`Event ${event.id} already processed, skipping`)
       return
     }
 
+    try {
+      await this.dispatch(event)
+    } catch (error) {
+      // release the dedupe claim so Stripe's retry reprocesses the event
+      try {
+        await this.stripeEventsRepository.remove(event.id)
+      } catch (removeError) {
+        this.logger.error(
+          `failed to release dedupe claim for ${event.id}: ${String(removeError)}`,
+        )
+      }
+      throw error
+    }
+  }
+
+  private async dispatch(event: Stripe.Event): Promise<void> {
     switch (event.type) {
       case 'payment_intent.succeeded':
         await this.handlePaymentSucceededService.execute(event.data.object)
@@ -75,7 +92,5 @@ export class DispatchStripeEventService {
       default:
         this.logger.log(`Ignoring unhandled event type: ${event.type}`)
     }
-
-    await this.stripeEventsRepository.markAsProcessed(event.id, event.type)
   }
 }

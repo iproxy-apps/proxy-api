@@ -1,4 +1,5 @@
 import Stripe from 'stripe'
+import { Logger } from '@nestjs/common'
 
 import { StripeService } from 'src/stripe/stripe.service'
 import { errorDictionary } from 'src/exception/error-dictionary'
@@ -16,7 +17,7 @@ type StripeServiceMock = jest.Mocked<
   Pick<StripeService, 'constructWebhookEvent'>
 >
 type StripeEventsRepositoryMock = jest.Mocked<
-  Pick<StripeEventsRepository, 'wasProcessed' | 'markAsProcessed'>
+  Pick<StripeEventsRepository, 'tryMarkProcessed' | 'remove'>
 >
 type HandlerMock<T extends { execute: (...args: never[]) => unknown }> =
   jest.Mocked<Pick<T, 'execute'>>
@@ -46,8 +47,8 @@ describe('DispatchStripeEventService', () => {
   beforeEach(() => {
     stripeService = { constructWebhookEvent: jest.fn() }
     eventsRepo = {
-      wasProcessed: jest.fn().mockResolvedValue(false),
-      markAsProcessed: jest.fn().mockResolvedValue(undefined),
+      tryMarkProcessed: jest.fn().mockResolvedValue(true),
+      remove: jest.fn().mockResolvedValue(undefined),
     }
     accountUpdated = { execute: jest.fn() }
     chargeDisputed = { execute: jest.fn() }
@@ -79,19 +80,52 @@ describe('DispatchStripeEventService', () => {
       errorCode: errorDictionary.webhook.invalidSignature.errorCode,
     })
 
-    expect(eventsRepo.markAsProcessed).not.toHaveBeenCalled()
+    expect(eventsRepo.tryMarkProcessed).not.toHaveBeenCalled()
   })
 
   it('skips processing when the event was already handled', async () => {
     stripeService.constructWebhookEvent.mockReturnValue(
       makeEvent('payment_intent.succeeded', { id: 'pi_1' }),
     )
-    eventsRepo.wasProcessed.mockResolvedValue(true)
+    eventsRepo.tryMarkProcessed.mockResolvedValue(false)
 
     await service.execute(Buffer.from('{}'), 'sig')
 
     expect(paymentSucceeded.execute).not.toHaveBeenCalled()
-    expect(eventsRepo.markAsProcessed).not.toHaveBeenCalled()
+    expect(eventsRepo.remove).not.toHaveBeenCalled()
+  })
+
+  it('removes the dedupe claim and rethrows when a handler fails', async () => {
+    stripeService.constructWebhookEvent.mockReturnValue(
+      makeEvent('payment_intent.succeeded', { id: 'pi_1' }),
+    )
+    const failure = new Error('db down')
+    paymentSucceeded.execute.mockRejectedValue(failure)
+
+    await expect(service.execute(Buffer.from('{}'), 'sig')).rejects.toBe(
+      failure,
+    )
+
+    expect(eventsRepo.remove).toHaveBeenCalledWith('evt_1')
+  })
+
+  it('still rethrows the original handler error when remove fails', async () => {
+    stripeService.constructWebhookEvent.mockReturnValue(
+      makeEvent('payment_intent.succeeded', { id: 'pi_1' }),
+    )
+    const failure = new Error('db down')
+    paymentSucceeded.execute.mockRejectedValue(failure)
+    eventsRepo.remove.mockRejectedValue(new Error('remove failed'))
+    const logSpy = jest
+      .spyOn(Logger.prototype, 'error')
+      .mockImplementation(() => undefined)
+
+    await expect(service.execute(Buffer.from('{}'), 'sig')).rejects.toBe(
+      failure,
+    )
+
+    expect(logSpy).toHaveBeenCalled()
+    logSpy.mockRestore()
   })
 
   it.each([
@@ -109,7 +143,8 @@ describe('DispatchStripeEventService', () => {
     await service.execute(Buffer.from('{}'), 'sig')
 
     expect(pickHandler().execute).toHaveBeenCalledWith(eventData)
-    expect(eventsRepo.markAsProcessed).toHaveBeenCalledWith('evt_1', type)
+    expect(eventsRepo.tryMarkProcessed).toHaveBeenCalledWith('evt_1', type)
+    expect(eventsRepo.remove).not.toHaveBeenCalled()
   })
 
   it('routes payout.failed with the connected account id', async () => {
@@ -141,6 +176,6 @@ describe('DispatchStripeEventService', () => {
     expect(chargeRefunded.execute).not.toHaveBeenCalled()
     expect(chargeDisputed.execute).not.toHaveBeenCalled()
     expect(accountUpdated.execute).not.toHaveBeenCalled()
-    expect(eventsRepo.markAsProcessed).toHaveBeenCalled()
+    expect(eventsRepo.tryMarkProcessed).toHaveBeenCalled()
   })
 })
