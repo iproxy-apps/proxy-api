@@ -6,7 +6,7 @@ import { PrismaService } from 'src/prisma/prisma.service'
 import { assertTestDatabaseUrl } from './assert-test-database-url'
 import { TRUNCATE_TABLES } from 'src/modules/test-hooks/truncate-tables'
 import { StripeService } from 'src/stripe/stripe.service'
-import { HttpExceptionFilter } from 'src/exception/http.exception'
+import { configureApp } from 'src/configure-app'
 import { NotificationService } from 'src/notification/notification.service'
 
 import { createNotificationServiceMock } from '../mocks/notification.service.mock'
@@ -19,7 +19,9 @@ export type TestAppContext = {
   notificationMock: jest.Mocked<NotificationService>
 }
 
-export const createTestApp = async (): Promise<TestAppContext> => {
+export const createTestApp = async (
+  options: { trustProxy?: number } = {},
+): Promise<TestAppContext> => {
   const stripeMock = createStripeServiceMock()
   const notificationMock = createNotificationServiceMock()
 
@@ -33,7 +35,7 @@ export const createTestApp = async (): Promise<TestAppContext> => {
     .compile()
 
   const app = moduleRef.createNestApplication({ logger: false, rawBody: true })
-  app.useGlobalFilters(new HttpExceptionFilter())
+  configureApp(app, { trustProxy: options.trustProxy ?? 0 })
   await app.init()
 
   const prisma = app.get(PrismaService)

@@ -1,19 +1,20 @@
+import { Logger } from '@nestjs/common'
 import { NestFactory } from '@nestjs/core'
 
 import { AppModule } from './app.module'
+import { configureApp } from './configure-app'
 import { EnvService } from './env/env.service'
-import { HttpExceptionFilter } from './exception/http.exception'
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, { rawBody: true })
 
-  app.enableCors()
+  const env = app.get(EnvService)
 
-  app.useGlobalFilters(new HttpExceptionFilter())
+  configureApp(app, { trustProxy: env.get('TRUST_PROXY') })
 
-  const port = app.get(EnvService).get('PORT') ?? 3333
+  const port = env.get('PORT') ?? 3333
 
-  console.log('🚀 ~ Starting server on port ', port)
+  new Logger('Bootstrap').log(`Listening on port ${port}`)
   await app.listen(port)
 }
 
