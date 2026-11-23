@@ -145,14 +145,6 @@ export type ValidateTaskData = {
   comment?: string
 }
 
-export type ValidateTaskCompletionData = {
-  taskId: string
-  status: TaskStatus
-  platformFee: number
-  proxyEarnings: number
-  transferId?: string
-}
-
 export type CancelTaskData = {
   taskId: string
   userId: string

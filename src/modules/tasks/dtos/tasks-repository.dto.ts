@@ -11,7 +11,6 @@ import type {
   FetchTasksQueryData,
   TaskStatus,
   UpdateTaskStatusData,
-  ValidateTaskCompletionData,
   FetchTaskUserMappingQueryData,
 } from '../types'
 
@@ -29,7 +28,6 @@ export interface TasksRepositoryDTO {
     taskId: string,
   ) => Promise<FetchTaskUserMappingQueryData | null>
   fetchTaskCounterpartById: (userId: string) => Promise<TaskCounterpart | null>
-  validateTaskCompletion: (data: ValidateTaskCompletionData) => Promise<void>
   markPayoutFailed: (taskId: string) => Promise<void>
   transition: (data: TransitionTaskData) => Promise<boolean>
   claimTask: (data: ClaimTaskData) => Promise<boolean>

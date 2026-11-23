@@ -191,6 +191,13 @@ export const errorDictionary = {
       errorCode: 'PAYMENT_PENDING',
     } as const,
 
+    notConfirmed: {
+      message:
+        'O pagamento desta tarefa ainda não foi confirmado. Tente novamente em alguns minutos.',
+      statusCode: HttpStatus.CONFLICT,
+      errorCode: 'PAYMENT_NOT_CONFIRMED',
+    } as const,
+
     disputed: {
       message: 'O pagamento desta tarefa está em disputa. Fale com o suporte.',
       statusCode: HttpStatus.CONFLICT,

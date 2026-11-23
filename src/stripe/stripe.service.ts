@@ -136,19 +136,6 @@ export class StripeService {
     })
   }
 
-  async createTransfer(data: {
-    amount: number
-    destination: string
-    metadata?: Record<string, string>
-  }) {
-    return await this.stripe.transfers.create({
-      amount: data.amount,
-      currency: 'brl',
-      destination: data.destination,
-      metadata: data.metadata,
-    })
-  }
-
   async reverseTransfer(transferId: string) {
     return await this.stripe.transfers.createReversal(transferId)
   }

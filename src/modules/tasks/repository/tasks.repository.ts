@@ -18,7 +18,6 @@ import type {
   FetchTasksQueryData,
   UpdateTaskStatusData,
   FetchTaskUserMappingQueryData,
-  ValidateTaskCompletionData,
 } from '../types'
 import type { TasksRepositoryDTO } from '../dtos/tasks-repository.dto'
 
@@ -208,21 +207,6 @@ export class TasksRepository implements TasksRepositoryDTO {
         avatarUrl: true,
         isVerified: true,
         rating: true,
-      },
-    })
-  }
-
-  async validateTaskCompletion(
-    data: ValidateTaskCompletionData,
-  ): Promise<void> {
-    const { taskId, status, platformFee, proxyEarnings, transferId } = data
-    await this.prisma.tasks.update({
-      where: { id: taskId },
-      data: {
-        status,
-        platformFee,
-        proxyEarnings,
-        transferId,
       },
     })
   }

@@ -1,6 +1,7 @@
 import request from 'supertest'
 
 import { createTask } from '../factories/task.factory'
+import { createPayment } from '../factories/payment.factory'
 import { createUser } from '../factories/user.factory'
 import { createTestApp, resetDatabase } from '../setup/test-app.factory'
 
@@ -19,38 +20,76 @@ describe('POST /tasks/validate (e2e)', () => {
 
   beforeEach(async () => {
     await resetDatabase(ctx.prisma)
-    ctx.stripeMock.createTransfer.mockClear()
-    ctx.stripeMock.createTransfer.mockResolvedValue({
-      id: 'tr_test_e2e',
-    } as unknown as Awaited<ReturnType<typeof ctx.stripeMock.createTransfer>>)
+    ctx.stripeMock.createTransferFromCharge.mockReset()
+    ctx.stripeMock.createTransferFromCharge.mockResolvedValue({
+      id: 'tr_test_123',
+    } as unknown as Awaited<
+      ReturnType<typeof ctx.stripeMock.createTransferFromCharge>
+    >)
   })
+
+  type SeedPayment = Parameters<typeof createPayment>[2]
 
   const seedTaskPendingValidation = async (
     offeredPrice = 100,
-    overrides: { stripeAccountReady?: boolean; stripeAccountId?: string | null } = {},
+    overrides: {
+      stripeAccountReady?: boolean
+      stripeAccountId?: string | null
+      payment?: SeedPayment | null
+      proxyEarnings?: number | null
+    } = {},
+    ownerEmail = 'owner@test.io',
+    proxyId?: { id: string; token: string },
   ) => {
     const owner = await createUser(ctx.app, ctx.prisma, {
-      email: 'owner@test.io',
+      email: ownerEmail,
     })
-    const proxy = await createUser(ctx.app, ctx.prisma, {
-      email: 'proxy@test.io',
-      userType: 'PROXY',
-      stripeAccountId:
-        overrides.stripeAccountId === undefined
-          ? 'acct_proxy_test'
-          : overrides.stripeAccountId,
-      stripeAccountReady: overrides.stripeAccountReady ?? true,
-    })
+    const proxy =
+      proxyId ??
+      (await createUser(ctx.app, ctx.prisma, {
+        email: 'proxy@test.io',
+        userType: 'PROXY',
+        stripeAccountId:
+          overrides.stripeAccountId === undefined
+            ? 'acct_proxy_test'
+            : overrides.stripeAccountId,
+        stripeAccountReady: overrides.stripeAccountReady ?? true,
+      }))
     const task = await createTask(ctx.prisma, owner.id, {
       status: 'verification_required',
       startedAt: new Date(),
       completedAt: new Date(),
       offeredPrice,
+      ...(overrides.proxyEarnings !== undefined && {
+        proxyEarnings: overrides.proxyEarnings,
+      }),
     })
     await ctx.prisma.userTaskMapping.create({
       data: { taskId: task.id, executorId: proxy.id },
     })
+    if (overrides.payment !== null) {
+      await createPayment(ctx.prisma, task.id, {
+        paymentIntent: `pi_${task.id}`,
+        ...(overrides.payment ?? {
+          status: 'succeeded',
+          chargeId: 'ch_test_1',
+          amount: offeredPrice,
+        }),
+      })
+    }
     return { owner, proxy, task }
+  }
+
+  const validate = (token: string, taskId: string) =>
+    request(ctx.app.getHttpServer())
+      .post('/tasks/validate')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ taskId })
+
+  const readState = async (taskId: string, proxyId: string) => {
+    const task = await ctx.prisma.tasks.findUnique({ where: { id: taskId } })
+    const proxy = await ctx.prisma.users.findUnique({ where: { id: proxyId } })
+    return { task, proxy }
   }
 
   it('rejects unauthenticated requests', async () => {
@@ -88,42 +127,210 @@ describe('POST /tasks/validate (e2e)', () => {
     expect(response.body).toMatchObject({ errorCode: 'CANNOT_VALIDATE_TASK' })
   })
 
-  it('completes the task, pays the executor and increments their counter', async () => {
+  it('completes the task, transfers 80 % of the offered price from the charge and credits the proxy', async () => {
     const { owner, proxy, task } = await seedTaskPendingValidation(100)
 
-    const response = await request(ctx.app.getHttpServer())
-      .post('/tasks/validate')
-      .set('Authorization', `Bearer ${owner.token}`)
-      .send({ taskId: task.id })
+    const response = await validate(owner.token, task.id)
 
     expect(response.status).toBe(200)
 
-    const updatedTask = await ctx.prisma.tasks.findUnique({
-      where: { id: task.id },
-    })
+    const { task: updatedTask, proxy: updatedProxy } = await readState(
+      task.id,
+      proxy.id,
+    )
     expect(updatedTask?.status).toBe('completed')
     expect(updatedTask?.completedAt).not.toBeNull()
-    expect(updatedTask?.transferId).toBe('tr_test_e2e')
+    expect(updatedTask?.transferId).toBe('tr_test_123')
+    expect(updatedTask?.platformFee?.toFixed(2)).toBe('20.00')
+    expect(updatedTask?.proxyEarnings?.toFixed(2)).toBe('80.00')
+    expect(updatedTask?.chargedAmount?.toFixed(2)).toBe('100.00')
 
-    // Stripe.transfers.create expects amount in cents
-    expect(ctx.stripeMock.createTransfer).toHaveBeenCalledWith({
-      amount: 7562,
-      destination: 'acct_proxy_test',
-      metadata: { taskId: task.id },
-    })
+    expect(ctx.stripeMock.createTransferFromCharge).toHaveBeenCalledWith(
+      {
+        amount: 8000,
+        destination: 'acct_proxy_test',
+        sourceTransaction: 'ch_test_1',
+        transferGroup: task.id,
+        taskId: task.id,
+      },
+      `task:${task.id}:transfer`,
+    )
 
-    const updatedProxy = await ctx.prisma.users.findUnique({
-      where: { id: proxy.id },
-    })
     expect(updatedProxy?.totalTasksCompleted).toBe(1)
-    // 100 - (100 * 0.0399 + 0.39) - (100 * 0.2) = 75.62
-    expect(Number(updatedProxy?.walletBalance)).toBeCloseTo(75.62, 2)
+    expect(updatedProxy?.walletBalance.toFixed(2)).toBe('80.00')
 
     const ratings = await ctx.prisma.ratings.findMany({
       where: { taskId: task.id },
     })
     expect(ratings).toHaveLength(0)
     expect(Number(updatedProxy?.rating)).toBe(0)
+  })
+
+  it('computes the 80 % transfer for a legacy task without stored proxyEarnings', async () => {
+    const { owner, proxy, task } = await seedTaskPendingValidation(100, {
+      proxyEarnings: null,
+    })
+
+    const response = await validate(owner.token, task.id)
+
+    expect(response.status).toBe(200)
+    expect(ctx.stripeMock.createTransferFromCharge).toHaveBeenCalledWith(
+      expect.objectContaining({ amount: 8000 }),
+      `task:${task.id}:transfer`,
+    )
+    const { proxy: updatedProxy } = await readState(task.id, proxy.id)
+    expect(updatedProxy?.walletBalance.toFixed(2)).toBe('80.00')
+  })
+
+  it.each([['pending'], ['failed'], ['refunded']] as const)(
+    'refuses with 409 PAYMENT_NOT_CONFIRMED when the latest payment is %s',
+    async (status) => {
+      const { owner, proxy, task } = await seedTaskPendingValidation(100, {
+        payment: { status, amount: 100 },
+      })
+
+      const response = await validate(owner.token, task.id)
+
+      expect(response.status).toBe(409)
+      expect(response.body).toMatchObject({
+        errorCode: 'PAYMENT_NOT_CONFIRMED',
+      })
+      expect(ctx.stripeMock.createTransferFromCharge).not.toHaveBeenCalled()
+
+      const { task: stored, proxy: storedProxy } = await readState(
+        task.id,
+        proxy.id,
+      )
+      expect(stored?.status).toBe('verification_required')
+      expect(stored?.transferId).toBeNull()
+      expect(storedProxy?.walletBalance.toFixed(2)).toBe('0.00')
+    },
+  )
+
+  it('refuses with 409 TASK_STATUS_CONFLICT when the task is not awaiting validation', async () => {
+    const { owner, task } = await seedTaskPendingValidation(100)
+    await ctx.prisma.tasks.update({
+      where: { id: task.id },
+      data: { status: 'in_progress' },
+    })
+
+    const response = await validate(owner.token, task.id)
+
+    expect(response.status).toBe(409)
+    expect(response.body).toMatchObject({ errorCode: 'TASK_STATUS_CONFLICT' })
+    expect(ctx.stripeMock.createTransferFromCharge).not.toHaveBeenCalled()
+  })
+
+  it('refuses when there is no payment row', async () => {
+    const { owner, proxy, task } = await seedTaskPendingValidation(100, {
+      payment: null,
+    })
+
+    const response = await validate(owner.token, task.id)
+
+    expect(response.status).toBe(409)
+    expect(response.body).toMatchObject({ errorCode: 'PAYMENT_NOT_CONFIRMED' })
+    expect(ctx.stripeMock.createTransferFromCharge).not.toHaveBeenCalled()
+    const { task: stored, proxy: storedProxy } = await readState(
+      task.id,
+      proxy.id,
+    )
+    expect(stored?.status).toBe('verification_required')
+    expect(storedProxy?.walletBalance.toFixed(2)).toBe('0.00')
+  })
+
+  it('refuses a succeeded payment without chargeId (legacy row)', async () => {
+    const { owner, task } = await seedTaskPendingValidation(100, {
+      payment: { status: 'succeeded', chargeId: null, amount: 100 },
+    })
+
+    const response = await validate(owner.token, task.id)
+
+    expect(response.status).toBe(409)
+    expect(response.body).toMatchObject({ errorCode: 'PAYMENT_NOT_CONFIRMED' })
+    expect(ctx.stripeMock.createTransferFromCharge).not.toHaveBeenCalled()
+  })
+
+  it('refuses a disputed payment', async () => {
+    const { owner, proxy, task } = await seedTaskPendingValidation(100, {
+      payment: { status: 'disputed', disputeId: 'dp_1', chargeId: 'ch_test_1' },
+    })
+
+    const response = await validate(owner.token, task.id)
+
+    expect(response.status).toBe(409)
+    expect(response.body).toMatchObject({ errorCode: 'PAYMENT_DISPUTED' })
+    expect(ctx.stripeMock.createTransferFromCharge).not.toHaveBeenCalled()
+    const { task: stored, proxy: storedProxy } = await readState(
+      task.id,
+      proxy.id,
+    )
+    expect(stored?.status).toBe('verification_required')
+    expect(storedProxy?.walletBalance.toFixed(2)).toBe('0.00')
+  })
+
+  it('reverts to verification_required when the transfer fails', async () => {
+    const { owner, proxy, task } = await seedTaskPendingValidation(100)
+    ctx.stripeMock.createTransferFromCharge.mockRejectedValueOnce(
+      new Error('balance_insufficient'),
+    )
+
+    const response = await validate(owner.token, task.id)
+
+    expect(response.status).toBe(500)
+    expect(response.body).toMatchObject({ errorCode: 'TASK_TRANSFER_FAILED' })
+
+    const { task: stored, proxy: storedProxy } = await readState(
+      task.id,
+      proxy.id,
+    )
+    expect(stored?.status).toBe('verification_required')
+    expect(stored?.transferId).toBeNull()
+    expect(storedProxy?.walletBalance.toFixed(2)).toBe('0.00')
+    expect(storedProxy?.totalTasksCompleted).toBe(0)
+  })
+
+  it('pays exactly once under concurrent validates', async () => {
+    const { owner, proxy, task } = await seedTaskPendingValidation(100)
+
+    const [a, b] = await Promise.all([
+      validate(owner.token, task.id),
+      validate(owner.token, task.id),
+    ])
+
+    expect([a.status, b.status].sort()).toEqual([200, 409])
+    const loser = a.status === 409 ? a : b
+    expect(loser.body).toMatchObject({ errorCode: 'TASK_STATUS_CONFLICT' })
+    expect(ctx.stripeMock.createTransferFromCharge).toHaveBeenCalledTimes(1)
+    const { proxy: updatedProxy } = await readState(task.id, proxy.id)
+    expect(updatedProxy?.totalTasksCompleted).toBe(1)
+    expect(updatedProxy?.walletBalance.toFixed(2)).toBe('80.00')
+  })
+
+  it('increments the wallet atomically across concurrent validations of two tasks', async () => {
+    const first = await seedTaskPendingValidation(100)
+    ctx.stripeMock.createTransferFromCharge
+      .mockResolvedValueOnce({ id: 'tr_test_a' } as never)
+      .mockResolvedValueOnce({ id: 'tr_test_b' } as never)
+    const second = await seedTaskPendingValidation(
+      50,
+      {},
+      'owner2@test.io',
+      first.proxy,
+    )
+
+    const [a, b] = await Promise.all([
+      validate(first.owner.token, first.task.id),
+      validate(second.owner.token, second.task.id),
+    ])
+
+    expect([a.status, b.status]).toEqual([200, 200])
+    const { proxy: updatedProxy } = await readState(
+      first.task.id,
+      first.proxy.id,
+    )
+    expect(updatedProxy?.walletBalance.toFixed(2)).toBe('120.00')
+    expect(updatedProxy?.totalTasksCompleted).toBe(2)
   })
 
   it('returns 409 PROXY_ACCOUNT_NOT_READY and skips the transfer when the proxy onboarding is incomplete', async () => {
@@ -137,9 +344,11 @@ describe('POST /tasks/validate (e2e)', () => {
       .send({ taskId: task.id })
 
     expect(response.status).toBe(409)
-    expect(response.body).toMatchObject({ errorCode: 'PROXY_ACCOUNT_NOT_READY' })
+    expect(response.body).toMatchObject({
+      errorCode: 'PROXY_ACCOUNT_NOT_READY',
+    })
 
-    expect(ctx.stripeMock.createTransfer).not.toHaveBeenCalled()
+    expect(ctx.stripeMock.createTransferFromCharge).not.toHaveBeenCalled()
 
     const stored = await ctx.prisma.tasks.findUnique({ where: { id: task.id } })
     expect(stored?.status).toBe('verification_required')
