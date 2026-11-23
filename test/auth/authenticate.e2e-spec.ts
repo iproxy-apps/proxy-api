@@ -30,13 +30,24 @@ describe('POST /auth/session (e2e)', () => {
     expect(response.body).toMatchObject({ errorCode: 'VALIDATION_FAILED' })
   })
 
-  it('returns 404 when the user does not exist', async () => {
+  it('returns 401 when the user does not exist', async () => {
     const response = await request(ctx.app.getHttpServer())
       .post('/auth/session')
       .send({ email: 'missing@test.io', password: 'whatever' })
 
-    expect(response.status).toBe(404)
-    expect(response.body).toMatchObject({ errorCode: 'USER_NOT_FOUND' })
+    expect(response.status).toBe(401)
+    expect(response.body).toMatchObject({
+      errorCode: 'USER_INVALID_CREDENTIALS',
+    })
+  })
+
+  it('rejects a password longer than 72 characters', async () => {
+    const response = await request(ctx.app.getHttpServer())
+      .post('/auth/session')
+      .send({ email: 'user@test.io', password: 'a'.repeat(300) })
+
+    expect(response.status).toBe(400)
+    expect(response.body).toMatchObject({ errorCode: 'VALIDATION_FAILED' })
   })
 
   it('returns 401 when the password does not match', async () => {

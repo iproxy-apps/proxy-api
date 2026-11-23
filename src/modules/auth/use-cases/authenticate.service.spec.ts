@@ -1,12 +1,18 @@
-import { hash } from 'bcryptjs'
+import { compare, hash } from 'bcryptjs'
 import { Prisma } from '@prisma/client'
 
 import { AuthenticateService } from './authenticate.service'
 import { AuthRepository } from '../repository/auth.repository'
 import { IssueSessionService } from './issue-session.service'
+import { DUMMY_PASSWORD_HASH } from '../utils/password'
 import { errorDictionary } from 'src/exception/error-dictionary'
 
 import type { FindUserByEmailResult } from '../types'
+
+jest.mock('bcryptjs', () => {
+  const actual = jest.requireActual<typeof import('bcryptjs')>('bcryptjs')
+  return { ...actual, compare: jest.fn(actual.compare) }
+})
 
 type AuthRepositoryMock = jest.Mocked<Pick<AuthRepository, 'findByEmail'>>
 type IssueSessionServiceMock = jest.Mocked<Pick<IssueSessionService, 'issue'>>
@@ -52,13 +58,31 @@ describe('AuthenticateService', () => {
     )
   })
 
-  it('throws notFound when no user matches the email', async () => {
+  it('throws invalidCredentials and still compares once when no user matches', async () => {
+    const compareSpy = jest.mocked(compare)
+    compareSpy.mockClear()
     authRepository.findByEmail.mockResolvedValue(null)
 
     await expect(
       service.execute({ email: 'missing@test.io', password: 'whatever' }),
     ).rejects.toMatchObject({
-      errorCode: errorDictionary.user.notFound.errorCode,
+      errorCode: errorDictionary.user.invalidCredentials.errorCode,
+    })
+
+    expect(compareSpy).toHaveBeenCalledTimes(1)
+    expect(compareSpy).toHaveBeenCalledWith('whatever', DUMMY_PASSWORD_HASH)
+    expect(issueSession.issue).not.toHaveBeenCalled()
+  })
+
+  it('throws invalidCredentials for a deleted user even with the right password', async () => {
+    authRepository.findByEmail.mockResolvedValue(
+      await makeUser({ isDeleted: true }),
+    )
+
+    await expect(
+      service.execute({ email: 'user@test.io', password: 'correct-password' }),
+    ).rejects.toMatchObject({
+      errorCode: errorDictionary.user.invalidCredentials.errorCode,
     })
 
     expect(issueSession.issue).not.toHaveBeenCalled()

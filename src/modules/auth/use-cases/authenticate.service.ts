@@ -4,6 +4,7 @@ import { Injectable } from '@nestjs/common'
 import { AppException } from 'src/exception/app.exception'
 import { errorDictionary } from 'src/exception/error-dictionary'
 import { AuthRepository } from '../repository/auth.repository'
+import { DUMMY_PASSWORD_HASH } from '../utils/password'
 import { IssueSessionService } from './issue-session.service'
 
 import type { AuthenticateServiceResponse } from '../types'
@@ -27,13 +28,14 @@ export class AuthenticateService {
 
     const user = await this.authRepository.findByEmail(email)
 
-    if (!user) {
-      throw new AppException(errorDictionary.user.notFound)
-    }
+    // Always run one bcrypt compare so unknown e-mail, deleted user and wrong
+    // password are indistinguishable (same 401, same timing).
+    const passwordMatches = await compare(
+      password,
+      user?.password ?? DUMMY_PASSWORD_HASH,
+    )
 
-    const passwordMatches = await compare(password, user.password)
-
-    if (!passwordMatches) {
+    if (!user || user.isDeleted || !passwordMatches) {
       throw new AppException(errorDictionary.user.invalidCredentials)
     }
 

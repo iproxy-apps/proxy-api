@@ -8,7 +8,7 @@ import { AuthenticateService } from '../use-cases/authenticate.service'
 
 const authenticateBodySchema = z.object({
   email: emailSchema,
-  password: z.string(),
+  password: z.string().min(1).max(72),
 })
 
 type AuthenticateBodySchema = z.infer<typeof authenticateBodySchema>
