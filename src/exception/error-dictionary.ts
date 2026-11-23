@@ -17,6 +17,13 @@ export const errorDictionary = {
       errorCode: 'USER_NOT_CLIENT',
     } as const,
 
+    signUpUnavailable: {
+      message:
+        'Não foi possível concluir o cadastro agora. Tente novamente em alguns minutos.',
+      statusCode: HttpStatus.SERVICE_UNAVAILABLE,
+      errorCode: 'SIGN_UP_UNAVAILABLE',
+    } as const,
+
     notFound: {
       message: 'Usuário não encontrado.',
       statusCode: HttpStatus.NOT_FOUND,

@@ -35,8 +35,23 @@ export class AuthRepository implements AuthRepositoryDTO {
     })
   }
 
-  async create(data: UsersCreateInput): Promise<UsersCreateInput> {
-    return this.prisma.users.create({ data })
+  async create(data: UsersCreateInput): Promise<{ id: string }> {
+    return this.prisma.users.create({ data, select: { id: true } })
+  }
+
+  async updateStripeCustomerId(
+    userId: string,
+    stripeCustomerId: string,
+  ): Promise<void> {
+    await this.prisma.users.update({
+      where: { id: userId },
+      data: { stripeCustomerId },
+    })
+  }
+
+  // Only used to roll back a sign-up whose Stripe customer could not be created.
+  async hardDeleteUser(userId: string): Promise<void> {
+    await this.prisma.users.delete({ where: { id: userId } })
   }
 
   async findUserStripeCustomerId(userId: string): Promise<string | null> {

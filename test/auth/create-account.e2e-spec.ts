@@ -54,10 +54,10 @@ describe('POST /auth/create (e2e)', () => {
     expect(user?.stripeCustomerId).toBe('cus_test_123')
     expect(user?.password).not.toBe(payload.password)
 
-    expect(ctx.stripeMock.searchCustomer).toHaveBeenCalledWith(payload.email)
     expect(ctx.stripeMock.createCustomer).toHaveBeenCalledWith(
       payload.email,
       payload.name,
+      user?.id,
     )
   })
 
@@ -77,22 +77,63 @@ describe('POST /auth/create (e2e)', () => {
     expect(second.body).toMatchObject({ errorCode: 'USER_EMAIL_EXISTS' })
   })
 
-  it('reuses an existing Stripe customer when search returns a match', async () => {
-    ctx.stripeMock.searchCustomer.mockResolvedValueOnce({
-      data: [{ id: 'cus_existing' }],
-    } as Awaited<ReturnType<typeof ctx.stripeMock.searchCustomer>>)
+  it('returns 409 when the same email differs only by case', async () => {
+    const base = validPayload()
+    const local = `Ana${Date.now()}`
+    await request(ctx.app.getHttpServer())
+      .post('/auth/create')
+      .send({ ...base, email: `${local}@X.com` })
+      .expect(200)
 
+    const second = await request(ctx.app.getHttpServer())
+      .post('/auth/create')
+      .send({ ...base, email: `${local.toLowerCase()}@x.com` })
+
+    expect(second.status).toBe(409)
+    expect(second.body).toMatchObject({ errorCode: 'USER_EMAIL_EXISTS' })
+    expect(await ctx.prisma.users.count()).toBe(1)
+  })
+
+  it('accepts an apostrophe in the local part', async () => {
+    await request(ctx.app.getHttpServer())
+      .post('/auth/create')
+      .send({ ...validPayload(), email: "o'neil@x.com" })
+      .expect(200)
+
+    expect(ctx.stripeMock.createCustomer).toHaveBeenCalledWith(
+      "o'neil@x.com",
+      'New User',
+      expect.stringMatching(/^[0-9a-f-]{36}$/),
+    )
+  })
+
+  it('creates the Stripe customer after the row with the user id in metadata', async () => {
     const payload = validPayload()
     await request(ctx.app.getHttpServer())
       .post('/auth/create')
       .send(payload)
       .expect(200)
 
-    const user = await ctx.prisma.users.findUnique({
+    const user = await ctx.prisma.users.findUniqueOrThrow({
       where: { email: payload.email },
     })
-    expect(user?.stripeCustomerId).toBe('cus_existing')
-    expect(ctx.stripeMock.createCustomer).not.toHaveBeenCalled()
+    expect(ctx.stripeMock.createCustomer.mock.calls[0][2]).toBe(user.id)
+    expect(user.stripeCustomerId).toBe('cus_test_123')
+  })
+
+  it('rolls back the user when Stripe is unavailable', async () => {
+    ctx.stripeMock.createCustomer.mockRejectedValueOnce(new Error('down'))
+    const payload = validPayload()
+
+    const response = await request(ctx.app.getHttpServer())
+      .post('/auth/create')
+      .send(payload)
+
+    expect(response.status).toBe(503)
+    expect(response.body).toMatchObject({ errorCode: 'SIGN_UP_UNAVAILABLE' })
+    expect(
+      await ctx.prisma.users.findUnique({ where: { email: payload.email } }),
+    ).toBeNull()
   })
 
   it('rejects server-owned fields (strict schema)', async () => {

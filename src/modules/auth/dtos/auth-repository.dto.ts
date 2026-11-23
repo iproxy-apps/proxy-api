@@ -5,7 +5,12 @@ import { FindUserByEmailResult } from '../types'
 
 export interface AuthRepositoryDTO {
   findByEmail: (email: string) => Promise<FindUserByEmailResult | null>
-  create: (data: UsersCreateInput) => Promise<UsersCreateInput>
+  create: (data: UsersCreateInput) => Promise<{ id: string }>
+  updateStripeCustomerId: (
+    userId: string,
+    stripeCustomerId: string,
+  ) => Promise<void>
+  hardDeleteUser: (userId: string) => Promise<void>
   findUserStripeCustomerId: (userId: string) => Promise<string | null>
   fetchUserDetailsById: (
     userId: string,

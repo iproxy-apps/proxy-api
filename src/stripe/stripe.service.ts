@@ -128,10 +128,11 @@ export class StripeService {
     })
   }
 
-  async createCustomer(email: string, name: string) {
+  async createCustomer(email: string, name: string, userId: string) {
     return await this.stripe.customers.create({
       email,
       name,
+      metadata: { userId },
     })
   }
 

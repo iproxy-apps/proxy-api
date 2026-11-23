@@ -1,4 +1,5 @@
 import { hash } from 'bcryptjs'
+import { randomUUID } from 'node:crypto'
 import { Injectable } from '@nestjs/common'
 
 import { PrismaService } from 'src/prisma/prisma.service'
@@ -33,6 +34,7 @@ export class SeedUserService {
 
     // Mirrors CreateAccountService: a real Stripe customer, so card/charge
     // flows work against Stripe test mode under dev-stack.sh.
+    const userId = randomUUID()
     let stripeCustomerId: string
 
     try {
@@ -46,6 +48,7 @@ export class SeedUserService {
         const newCustomer = await this.stripeService.createCustomer(
           input.email,
           input.name,
+          userId,
         )
         stripeCustomerId = newCustomer.id
       }
@@ -55,6 +58,7 @@ export class SeedUserService {
 
     const user = await this.prisma.users.create({
       data: {
+        id: userId,
         name: input.name,
         email: input.email,
         userType: input.userType,

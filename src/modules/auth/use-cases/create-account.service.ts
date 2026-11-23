@@ -1,4 +1,5 @@
-import { Injectable } from '@nestjs/common'
+import { Prisma } from '@prisma/client'
+import { Injectable, Logger } from '@nestjs/common'
 
 import { StripeService } from 'src/stripe/stripe.service'
 import { hashPassword } from '../utils/password'
@@ -13,8 +14,13 @@ type CreateAccountServiceResponse = {
   session: string
 }
 
+const errorText = (error: unknown): string =>
+  error instanceof Error ? (error.stack ?? error.message) : String(error)
+
 @Injectable()
 export class CreateAccountService {
+  private readonly logger = new Logger(CreateAccountService.name)
+
   constructor(
     private stripeService: StripeService,
     private authRepository: AuthRepository,
@@ -34,31 +40,53 @@ export class CreateAccountService {
 
     const hashedPassword = await hashPassword(password)
 
-    // stripe logic
-    let stripeCustomerId: string | null = null
+    let userId: string
 
     try {
-      const stripeCustomer = await this.stripeService.searchCustomer(email)
-
-      if (stripeCustomer.data.length) {
-        stripeCustomerId = stripeCustomer.data[0].id
-      } else {
-        const newCustomer = await this.stripeService.createCustomer(email, name)
-        stripeCustomerId = newCustomer.id
+      const created = await this.authRepository.create({
+        name,
+        email,
+        password: hashedPassword,
+        userType: data.userType,
+        phoneNumber: data.phoneNumber,
+        termsAccepted: data.termsAccepted,
+      })
+      userId = created.id
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        throw new AppException(errorDictionary.user.emailExists(email))
       }
-    } catch {
-      throw new AppException(errorDictionary.standard)
+      throw error
     }
 
-    await this.authRepository.create({
-      name,
-      email,
-      password: hashedPassword,
-      userType: data.userType,
-      phoneNumber: data.phoneNumber,
-      termsAccepted: data.termsAccepted,
-      stripeCustomerId,
-    })
+    let customerId: string | null = null
+
+    try {
+      const customer = await this.stripeService.createCustomer(
+        email,
+        name,
+        userId,
+      )
+      customerId = customer.id
+      await this.authRepository.updateStripeCustomerId(userId, customerId)
+    } catch (error) {
+      this.logger.error(
+        `Stripe customer setup failed for user ${userId} (customer ${customerId ?? 'none'}): ${errorText(error)}`,
+      )
+
+      try {
+        await this.authRepository.hardDeleteUser(userId)
+      } catch (rollbackError) {
+        this.logger.error(
+          `Rollback failed for user ${userId}; manual cleanup needed: ${errorText(rollbackError)}`,
+        )
+      }
+
+      throw new AppException(errorDictionary.user.signUpUnavailable)
+    }
 
     return await this.authenticateService.execute({
       email,

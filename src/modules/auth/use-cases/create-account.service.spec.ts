@@ -1,4 +1,6 @@
 import { compare } from 'bcryptjs'
+import { Logger } from '@nestjs/common'
+import { Prisma } from '@prisma/client'
 
 import { makeUser } from '../test-utils/user.factory'
 import { StripeService } from 'src/stripe/stripe.service'
@@ -10,12 +12,13 @@ import { errorDictionary } from 'src/exception/error-dictionary'
 import type { CreateAccountInput } from '../types'
 
 type AuthRepositoryMock = jest.Mocked<
-  Pick<AuthRepository, 'findByEmail' | 'create'>
+  Pick<
+    AuthRepository,
+    'findByEmail' | 'create' | 'updateStripeCustomerId' | 'hardDeleteUser'
+  >
 >
 
-type StripeServiceMock = jest.Mocked<
-  Pick<StripeService, 'searchCustomer' | 'createCustomer'>
->
+type StripeServiceMock = jest.Mocked<Pick<StripeService, 'createCustomer'>>
 
 type AuthenticateServiceMock = jest.Mocked<Pick<AuthenticateService, 'execute'>>
 
@@ -40,9 +43,10 @@ describe('CreateAccountService', () => {
     authRepository = {
       create: jest.fn(),
       findByEmail: jest.fn(),
+      updateStripeCustomerId: jest.fn(),
+      hardDeleteUser: jest.fn(),
     }
     stripeService = {
-      searchCustomer: jest.fn(),
       createCustomer: jest.fn(),
     }
     authenticateService = { execute: jest.fn() }
@@ -61,32 +65,14 @@ describe('CreateAccountService', () => {
       errorCode: errorDictionary.user.emailExists('any').errorCode,
     })
 
-    expect(stripeService.searchCustomer).not.toHaveBeenCalled()
+    expect(stripeService.createCustomer).not.toHaveBeenCalled()
     expect(authRepository.create).not.toHaveBeenCalled()
     expect(authenticateService.execute).not.toHaveBeenCalled()
   })
 
-  it('reuses the existing Stripe customer when one is found', async () => {
+  it('creates the row first, then the Stripe customer with the user id', async () => {
     authRepository.findByEmail.mockResolvedValue(null)
-    stripeService.searchCustomer.mockResolvedValue({
-      data: [{ id: 'cus_existing' }],
-    } as Awaited<ReturnType<StripeService['searchCustomer']>>)
-    authenticateService.execute.mockResolvedValue({ session: 'token' })
-
-    await service.execute(makeCreateInput({ email: 'reuse@test.io' }))
-
-    expect(stripeService.searchCustomer).toHaveBeenCalledWith('reuse@test.io')
-    expect(stripeService.createCustomer).not.toHaveBeenCalled()
-    expect(authRepository.create).toHaveBeenCalledWith(
-      expect.objectContaining({ stripeCustomerId: 'cus_existing' }),
-    )
-  })
-
-  it('creates a new Stripe customer when the search returns empty', async () => {
-    authRepository.findByEmail.mockResolvedValue(null)
-    stripeService.searchCustomer.mockResolvedValue({
-      data: [],
-    } as unknown as Awaited<ReturnType<StripeService['searchCustomer']>>)
+    authRepository.create.mockResolvedValue({ id: 'user-1' })
     stripeService.createCustomer.mockResolvedValue({
       id: 'cus_new',
     } as Awaited<ReturnType<StripeService['createCustomer']>>)
@@ -99,29 +85,91 @@ describe('CreateAccountService', () => {
     expect(stripeService.createCustomer).toHaveBeenCalledWith(
       'new@test.io',
       'New User',
+      'user-1',
     )
-    expect(authRepository.create).toHaveBeenCalledWith(
-      expect.objectContaining({ stripeCustomerId: 'cus_new' }),
+    expect(authRepository.updateStripeCustomerId).toHaveBeenCalledWith(
+      'user-1',
+      'cus_new',
+    )
+    expect(authRepository.create.mock.invocationCallOrder[0]).toBeLessThan(
+      stripeService.createCustomer.mock.invocationCallOrder[0],
     )
   })
 
-  it('throws standard error when Stripe fails', async () => {
+  it('maps a P2002 on insert to emailExists without calling Stripe', async () => {
     authRepository.findByEmail.mockResolvedValue(null)
-    stripeService.searchCustomer.mockRejectedValue(new Error('stripe down'))
+    authRepository.create.mockRejectedValue(
+      new Prisma.PrismaClientKnownRequestError('dup', {
+        code: 'P2002',
+        clientVersion: 'test',
+      }),
+    )
 
     await expect(service.execute(makeCreateInput())).rejects.toMatchObject({
-      errorCode: errorDictionary.standard.errorCode,
+      errorCode: errorDictionary.user.emailExists('any').errorCode,
     })
 
-    expect(authRepository.create).not.toHaveBeenCalled()
+    expect(stripeService.createCustomer).not.toHaveBeenCalled()
+  })
+
+  it('rolls the row back and throws signUpUnavailable when Stripe fails', async () => {
+    authRepository.findByEmail.mockResolvedValue(null)
+    authRepository.create.mockResolvedValue({ id: 'user-2' })
+    stripeService.createCustomer.mockRejectedValue(new Error('stripe down'))
+
+    await expect(service.execute(makeCreateInput())).rejects.toMatchObject({
+      errorCode: errorDictionary.user.signUpUnavailable.errorCode,
+    })
+
+    expect(authRepository.hardDeleteUser).toHaveBeenCalledWith('user-2')
+    expect(authRepository.updateStripeCustomerId).not.toHaveBeenCalled()
     expect(authenticateService.execute).not.toHaveBeenCalled()
+  })
+
+  it('still throws signUpUnavailable when the rollback itself fails', async () => {
+    const logSpy = jest
+      .spyOn(Logger.prototype, 'error')
+      .mockImplementation(() => undefined)
+    authRepository.findByEmail.mockResolvedValue(null)
+    authRepository.create.mockResolvedValue({ id: 'user-4' })
+    stripeService.createCustomer.mockRejectedValue(new Error('stripe down'))
+    authRepository.hardDeleteUser.mockRejectedValue(new Error('db down'))
+
+    await expect(service.execute(makeCreateInput())).rejects.toMatchObject({
+      errorCode: errorDictionary.user.signUpUnavailable.errorCode,
+    })
+
+    expect(logSpy).toHaveBeenCalledTimes(2)
+    expect(logSpy.mock.calls[1][0]).toContain('Rollback failed for user user-4')
+    logSpy.mockRestore()
+  })
+
+  it('rolls back and logs the customer id when saving it fails', async () => {
+    const logSpy = jest
+      .spyOn(Logger.prototype, 'error')
+      .mockImplementation(() => undefined)
+    authRepository.findByEmail.mockResolvedValue(null)
+    authRepository.create.mockResolvedValue({ id: 'user-5' })
+    stripeService.createCustomer.mockResolvedValue({
+      id: 'cus_orphan',
+    } as Awaited<ReturnType<StripeService['createCustomer']>>)
+    authRepository.updateStripeCustomerId.mockRejectedValue(new Error('db'))
+
+    await expect(service.execute(makeCreateInput())).rejects.toMatchObject({
+      errorCode: errorDictionary.user.signUpUnavailable.errorCode,
+    })
+
+    expect(authRepository.hardDeleteUser).toHaveBeenCalledWith('user-5')
+    expect(logSpy.mock.calls[0][0]).toContain('cus_orphan')
+    logSpy.mockRestore()
   })
 
   it('hashes the password before persisting and delegates login to authenticate', async () => {
     authRepository.findByEmail.mockResolvedValue(null)
-    stripeService.searchCustomer.mockResolvedValue({
-      data: [{ id: 'cus_x' }],
-    } as Awaited<ReturnType<StripeService['searchCustomer']>>)
+    authRepository.create.mockResolvedValue({ id: 'user-3' })
+    stripeService.createCustomer.mockResolvedValue({
+      id: 'cus_x',
+    } as Awaited<ReturnType<StripeService['createCustomer']>>)
     authenticateService.execute.mockResolvedValue({ session: 'session-token' })
 
     const input = makeCreateInput({
