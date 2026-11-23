@@ -12,6 +12,14 @@ export type TaskStatus =
   | 'canceled'
   | 'payout_failed'
 
+export type PricePreview = {
+  offeredPrice: number
+  platformFee: number
+  stripeFee: number
+  chargedAmount: number
+  proxyEarnings: number
+}
+
 export type CreateTaskData = {
   userId: string
   title: string

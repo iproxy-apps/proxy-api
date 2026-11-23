@@ -18,6 +18,7 @@ import { StartTaskController } from './controllers/start-task.controller'
 import { CreateTaskController } from './controllers/create-task.controller'
 import { FetchTasksController } from './controllers/fetch-tasks.controller'
 import { FetchTaskByIdService } from './use-cases/fetch-task-by-id.service'
+import { PricePreviewService } from './use-cases/price-preview.service'
 import { FetchTaskProofService } from './use-cases/fetch-task-proof.service'
 import { FetchActiveTasksService } from './use-cases/fetch-active-tasks.service'
 import { FinishTaskController } from './controllers/finish-task.controller'
@@ -25,6 +26,7 @@ import { FetchTaskProofController } from './controllers/fetch-task-proof.control
 import { CancelTaskController } from './controllers/cancel-task.controller'
 import { ValidateTaskController } from './controllers/validate-task.controller'
 import { FetchUserCardService } from '../cards/use-cases/fetch-user-card.service'
+import { PricePreviewController } from './controllers/price-preview.controller'
 import { FetchTaskByIdController } from './controllers/fetch-task-by-id.controller'
 import { FetchActiveTasksController } from './controllers/fetch-active-tasks.controller'
 import { FetchUserDetailsService } from '../auth/use-cases/fetch-user-details.service'
@@ -55,6 +57,7 @@ import { multerOptions } from 'src/pipes/multer-validation.pipe'
     ValidateTaskService,
     FetchUserCardService,
     FetchTaskByIdService,
+    PricePreviewService,
     FetchTaskProofService,
     FetchUserDetailsService,
     SaveCardService,
@@ -69,6 +72,7 @@ import { multerOptions } from 'src/pipes/multer-validation.pipe'
     FinishTaskController,
     CancelTaskController,
     ValidateTaskController,
+    PricePreviewController,
     FetchTaskByIdController,
     FetchTaskProofController,
   ],
