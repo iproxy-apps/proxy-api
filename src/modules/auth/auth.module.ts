@@ -17,7 +17,6 @@ import { AuthRepository } from './repository/auth.repository'
 import { AuthenticateService } from './use-cases/authenticate.service'
 import { RefreshSessionService } from './use-cases/refresh-session.service'
 import { DeleteAccountService } from './use-cases/delete-account.service'
-import { TasksRepository } from '../tasks/repository/tasks.repository'
 import { DeleteAccountController } from './controllers/delete-account.controller'
 import { NotificationModule } from 'src/notification/notification.module'
 import { CreateAccountService } from './use-cases/create-account.service'
@@ -67,7 +66,6 @@ import { FetchMerchantDashboardLinkController } from './controllers/fetch-mercha
     EnvService,
     JwtStrategy,
     AuthRepository,
-    TasksRepository,
     RefreshTokensRepository,
     IssueSessionService,
     RefreshAccessTokenService,

@@ -3,6 +3,7 @@ import { Injectable } from '@nestjs/common'
 
 import { PrismaService } from 'src/prisma/prisma.service'
 import { MAX_RESET_CODE_ATTEMPTS } from '../utils/auth-schemas'
+import { DELETION_BLOCKING_STATUSES } from '../dtos/auth-repository.dto'
 
 import type {
   FindUserByEmailResult,
@@ -10,6 +11,7 @@ import type {
 } from '../types'
 import type {
   AuthRepositoryDTO,
+  DeleteAccountResult,
   TransactionHistoryTask,
 } from '../dtos/auth-repository.dto'
 
@@ -26,6 +28,8 @@ type PasswordResetCode = {
   attempts: number
   createdAt: Date
 }
+
+class DeletionBlockedError extends Error {}
 
 export class ResetCodeNotUsableError extends Error {
   constructor() {
@@ -133,17 +137,75 @@ export class AuthRepository implements AuthRepositoryDTO {
     await this.prisma.users.update({ where: { id: userId }, data })
   }
 
-  async softDeleteUser(userId: string): Promise<void> {
-    await this.prisma.users.update({
-      where: { id: userId },
-      data: {
-        isDeleted: true,
-        name: 'Conta removida',
-        email: `deleted-${userId}@deleted.local`,
-        phoneNumber: null,
-        avatarUrl: null,
-      },
-    })
+  async deleteAccount(userId: string): Promise<DeleteAccountResult> {
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        // Lock order: the per-user advisory lock (the one RefreshTokensRepository
+        // and the reset transaction take) comes first, before any users/tasks/cards write.
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${userId}))`
+
+        const now = new Date()
+        // Cancel first, then count: a concurrent claim (available -> in_progress)
+        // either landed before the cancel (and is counted below) or loses the CAS.
+        await tx.tasks.updateMany({
+          where: { owner: userId, status: 'available' },
+          data: { status: 'canceled', canceledAt: now },
+        })
+        const blocking = await tx.tasks.count({
+          where: {
+            status: { in: DELETION_BLOCKING_STATUSES },
+            OR: [
+              { owner: userId },
+              { userTaskMappings: { some: { executorId: userId } } },
+            ],
+          },
+        })
+        if (blocking > 0) throw new DeletionBlockedError()
+
+        await tx.refreshTokens.updateMany({
+          where: { userId, revokedAt: null },
+          data: { revokedAt: now },
+        })
+
+        const cards = await tx.cards.findMany({
+          where: { userId, isDeleted: false },
+          select: { stripeCardId: true },
+        })
+        await tx.cards.updateMany({
+          where: { userId, isDeleted: false },
+          data: { isDeleted: true },
+        })
+
+        const current = await tx.users.findUnique({
+          where: { id: userId },
+          select: { stripeCustomerId: true },
+        })
+        const { count } = await tx.users.updateMany({
+          where: { id: userId, isDeleted: false },
+          data: {
+            isDeleted: true,
+            deletedAt: now,
+            name: 'Conta removida',
+            email: `deleted-${userId}@deleted.local`,
+            phoneNumber: null,
+            avatarUrl: null,
+            password: '!deleted',
+          },
+        })
+        if (count === 0) return { status: 'already_deleted' as const }
+
+        return {
+          status: 'deleted' as const,
+          stripeCardIds: cards.map((card) => card.stripeCardId),
+          stripeCustomerId: current?.stripeCustomerId ?? null,
+        }
+      })
+    } catch (error) {
+      if (error instanceof DeletionBlockedError) {
+        return { status: 'blocked' }
+      }
+      throw error
+    }
   }
 
   async createPasswordResetCode(
@@ -246,10 +308,13 @@ export class AuthRepository implements AuthRepositoryDTO {
   ): Promise<void> {
     await this.prisma.$transaction(async (tx) => {
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${userId}))`
-      await tx.users.update({
-        where: { id: userId },
+      const updated = await tx.users.updateMany({
+        where: { id: userId, isDeleted: false },
         data: { password: hashedPassword },
       })
+      if (updated.count === 0) {
+        throw new ResetCodeNotUsableError()
+      }
       const consumed = await tx.passwordResetCodes.updateMany({
         where: { id: codeId, state: 'verified' },
         data: { state: 'used' },

@@ -1,15 +1,17 @@
-import { Injectable } from '@nestjs/common'
+import { Injectable, Logger } from '@nestjs/common'
 
 import { AppException } from 'src/exception/app.exception'
 import { AuthRepository } from '../repository/auth.repository'
 import { errorDictionary } from 'src/exception/error-dictionary'
-import { TasksRepository } from 'src/modules/tasks/repository/tasks.repository'
+import { StripeService } from 'src/stripe/stripe.service'
 
 @Injectable()
 export class DeleteAccountService {
+  private readonly logger = new Logger(DeleteAccountService.name)
+
   constructor(
     private authRepository: AuthRepository,
-    private tasksRepository: TasksRepository,
+    private stripeService: StripeService,
   ) {}
 
   async execute(userId: string): Promise<void> {
@@ -18,12 +20,34 @@ export class DeleteAccountService {
       throw new AppException(errorDictionary.user.notFound)
     }
 
-    const activeTasks =
-      await this.tasksRepository.fetchActiveTasksForUser(userId)
-    if (activeTasks.length > 0) {
+    const result = await this.authRepository.deleteAccount(userId)
+    if (result.status === 'blocked') {
       throw new AppException(errorDictionary.user.cannotDeleteWithActiveTasks)
     }
+    if (result.status === 'already_deleted') {
+      throw new AppException(errorDictionary.user.notFound)
+    }
 
-    await this.authRepository.softDeleteUser(userId)
+    for (const cardId of result.stripeCardIds) {
+      try {
+        await this.stripeService.detachPaymentMethod(cardId)
+      } catch (error) {
+        this.logger.error(
+          `Failed to detach payment method ${cardId} of deleted user ${userId}`,
+          error instanceof Error ? error.stack : String(error),
+        )
+      }
+    }
+
+    if (result.stripeCustomerId) {
+      try {
+        await this.stripeService.scrubCustomer(result.stripeCustomerId)
+      } catch (error) {
+        this.logger.error(
+          `Failed to scrub Stripe customer of deleted user ${userId}`,
+          error instanceof Error ? error.stack : String(error),
+        )
+      }
+    }
   }
 }

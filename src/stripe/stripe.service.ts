@@ -144,6 +144,15 @@ export class StripeService {
     return await this.stripe.paymentMethods.detach(paymentMethodId)
   }
 
+  async scrubCustomer(customerId: string) {
+    return await this.stripe.customers.update(customerId, {
+      name: 'Conta removida',
+      email: '',
+      phone: '',
+      metadata: { deletedAt: new Date().toISOString() },
+    })
+  }
+
   async createMerchantAccount(data: CreateMerchantAccountData) {
     const { email, lastName, firstName, phoneNumber } = data
     return await this.stripe.accounts.create({

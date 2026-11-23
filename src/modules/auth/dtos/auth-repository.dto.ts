@@ -1,5 +1,7 @@
 import { Prisma } from '@prisma/client'
 
+import type { TaskStatus } from '@prisma/client'
+
 type UsersCreateInput = Prisma.UsersCreateInput
 import { FindUserByEmailResult } from '../types'
 
@@ -23,7 +25,22 @@ export interface AuthRepositoryDTO {
   fetchTasksCompletedByUser: (
     userId: string,
   ) => Promise<TransactionHistoryTask[]>
+  deleteAccount: (userId: string) => Promise<DeleteAccountResult>
 }
+
+export const DELETION_BLOCKING_STATUSES: TaskStatus[] = [
+  'in_progress',
+  'verification_required',
+]
+
+export type DeleteAccountResult =
+  | { status: 'blocked' }
+  | { status: 'already_deleted' }
+  | {
+      status: 'deleted'
+      stripeCardIds: string[]
+      stripeCustomerId: string | null
+    }
 
 export type TransactionHistoryTask = {
   id: string

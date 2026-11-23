@@ -57,6 +57,7 @@ model Users {
   cards     Cards[]
 
   isDeleted          Boolean              @default(false)
+  deletedAt          DateTime?
   userTaskMappings   UserTaskMapping[]
   passwordResetCodes PasswordResetCodes[]
   refreshTokens      RefreshTokens[]
