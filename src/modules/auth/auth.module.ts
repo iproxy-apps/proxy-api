@@ -27,6 +27,8 @@ import { ForgotPasswordService } from './use-cases/forgot-password.service'
 import { VerifyResetCodeService } from './use-cases/verify-reset-code.service'
 import { AuthenticateController } from './controllers/authenticate.controller'
 import { RefreshSessionController } from './controllers/refresh-session.controller'
+import { FetchMeService } from './use-cases/fetch-me.service'
+import { FetchMeController } from './controllers/fetch-me.controller'
 import { FetchUserDetailsService } from './use-cases/fetch-user-details.service'
 import { UpdateProfileController } from './controllers/update-profile.controller'
 import { CreateAccountController } from './controllers/create-account.controller'
@@ -78,6 +80,7 @@ import { FetchMerchantDashboardLinkController } from './controllers/fetch-mercha
     ForgotPasswordService,
     UpdateProfileService,
     VerifyResetCodeService,
+    FetchMeService,
     FetchUserDetailsService,
     CreateMerchantAccountService,
     FetchTransactionHistoryService,
@@ -88,6 +91,7 @@ import { FetchMerchantDashboardLinkController } from './controllers/fetch-mercha
     RefreshAccessTokenController,
     LogoutController,
     RefreshSessionController,
+    FetchMeController,
     CreateAccountController,
     DeleteAccountController,
     UpdateProfileController,

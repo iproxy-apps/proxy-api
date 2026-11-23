@@ -61,3 +61,21 @@ export type UpdateUserProfileRepositoryPayload = {
   avatarUrl: string
   phoneNumber: string
 }
+
+export type MeResponse = {
+  id: string
+  name: string
+  email: string
+  phoneNumber: string | null
+  avatarUrl: string | null
+  userType: UserType
+  rating: number
+  totalTasksCompleted: number
+  totalTasksCreated: number
+  walletBalance: number
+  stripeAccountId: string | null
+  stripeAccountReady: boolean
+  payoutIssue: boolean
+  cardActionRequired: boolean
+  termsAccepted: boolean
+}
