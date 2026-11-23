@@ -1,101 +1,206 @@
-import { Injectable } from '@nestjs/common'
+import { Injectable, Logger } from '@nestjs/common'
 
+import { toCentavos } from 'src/common/money'
 import { StripeService } from 'src/stripe/stripe.service'
 import { AppException } from 'src/exception/app.exception'
 import { TasksRepository } from '../repository/tasks.repository'
 import { errorDictionary } from 'src/exception/error-dictionary'
+import { NotificationService } from 'src/notification/notification.service'
+import { PaymentsRepository } from 'src/modules/payments/repository/payments.repository'
 import { FetchUserCardService } from 'src/modules/cards/use-cases/fetch-user-card.service'
 import { FetchUserDetailsService } from 'src/modules/auth/use-cases/fetch-user-details.service'
-import { CreatePaymentRecordService } from 'src/modules/payments/use-cases/create-payment-record.service'
 
+import type Stripe from 'stripe'
+import type { UserCard } from 'src/modules/cards/types'
 import type { StartTaskData, StartTaskResult } from '../types'
+
+type ChargeOutcome = 'succeeded' | 'declined' | 'unknown'
 
 @Injectable()
 export class StartTaskService {
+  private readonly logger = new Logger(StartTaskService.name)
+
   constructor(
     private stripeService: StripeService,
     private tasksRepository: TasksRepository,
+    private paymentsRepository: PaymentsRepository,
     private fetchUserCardService: FetchUserCardService,
     private fetchUserDetailsService: FetchUserDetailsService,
-    private createPaymentRecordService: CreatePaymentRecordService,
+    private notificationService: NotificationService,
   ) {}
 
   async execute(data: StartTaskData): Promise<StartTaskResult> {
     const { taskId, userId } = data
 
-    const taskDetails = await this.tasksRepository.fetchTaskById({
-      taskId,
-      status: 'available',
-    })
+    // 1. task + status gate
+    const task = await this.tasksRepository.fetchTaskById({ taskId })
+    if (!task) throw new AppException(errorDictionary.tasks.taskNotFound)
 
-    // validations
-    if (!taskDetails) throw new AppException(errorDictionary.tasks.taskNotFound)
+    if (task.status !== 'available' && task.status !== 'in_progress') {
+      throw new AppException(errorDictionary.tasks.taskNotAvailable)
+    }
 
-    if (taskDetails.owner === userId) {
+    if (task.status === 'in_progress') {
+      const mapping =
+        await this.tasksRepository.fetchTaskMappingByTaskId(taskId)
+      if (mapping?.executorId !== userId) {
+        throw new AppException(errorDictionary.tasks.taskNotAvailable)
+      }
+    }
+
+    // 2. owner cannot start their own task
+    if (task.owner === userId) {
       throw new AppException(errorDictionary.tasks.cannotStartOwnTask)
     }
 
-    // check if user is proxy with completed merchant onboarding
+    // 3. proxy with completed merchant onboarding
     const userDetails = await this.fetchUserDetailsService.execute(userId)
     if (userDetails.userType !== 'PROXY' || !userDetails.stripeAccountReady) {
       throw new AppException(errorDictionary.user.userNotProxy)
     }
 
-    await this.tasksRepository.updateTaskStatus({
-      taskId,
-      status: 'in_progress',
-      startedAt: new Date(),
-    })
+    // this proxy already holds the live claim: a replay must not need the card
+    const ownClaim = task.status === 'in_progress'
+    if (ownClaim) {
+      const latest = await this.paymentsRepository.fetchLatestByTaskId(taskId)
+      if (latest?.status === 'succeeded') return { status: 'succeeded' }
+    }
 
-    await this.tasksRepository.insertTaskUserMapping(taskId, userId)
+    const notifyClient = async (): Promise<void> => {
+      try {
+        await this.notificationService.sendCardChargeFailedEmail(
+          task.ownerId.email,
+          task.ownerId.name,
+          task.title,
+        )
+      } catch (error) {
+        this.logger.warn(
+          `start ${taskId}: card charge failed e-mail not sent (${String(error)})`,
+        )
+      }
+    }
 
-    const ownerCard = await this.fetchUserCardService.execute(taskDetails.owner)
-    const savedCard = String(ownerCard.stripeCardId)
-
-    // charge the task owner; payment record is created as pending before
-    // confirmation so webhooks can later flip it to succeeded/failed
+    // 4. owner card + customer: without them there is nothing to charge
+    let card: UserCard | null = null
     try {
-      const offeredPrice = Number(taskDetails.offeredPrice)
-      const paymentIntent = await this.stripeService.createPaymentIntent({
-        savedCard,
-        amount: offeredPrice * 100,
-        customer: String(taskDetails.ownerId.stripeCustomerId),
-      })
-
-      if (!paymentIntent?.id) {
-        throw new AppException(errorDictionary.payment.paymentFailed)
-      }
-
-      await this.createPaymentRecordService.execute({
-        taskId,
-        amount: offeredPrice,
-        paymentIntent: paymentIntent.id,
-      })
-
-      const confirmation = await this.stripeService.confirmPaymentIntent(
-        paymentIntent.id,
-        savedCard,
-      )
-
-      if (!confirmation) {
-        throw new AppException(errorDictionary.payment.paymentFailed)
-      }
-
-      if (confirmation.status === 'succeeded') {
-        return { status: 'succeeded' }
-      }
-
-      if (confirmation.status === 'requires_action') {
-        return {
-          status: 'requires_action',
-          clientSecret: confirmation.client_secret ?? null,
-        }
-      }
-
-      throw new AppException(errorDictionary.payment.paymentFailed)
+      card = await this.fetchUserCardService.execute(task.owner)
     } catch (error) {
-      if (error instanceof AppException) throw error
+      if (
+        !(error instanceof AppException) ||
+        error.errorCode !== errorDictionary.card.noSavedCardFound.errorCode
+      ) {
+        throw error
+      }
+    }
+    const customer = task.ownerId.stripeCustomerId
+
+    if (!card || !card.stripeCardId || !customer) {
+      if (ownClaim) {
+        this.logger.error(
+          `start ${taskId}: claim held but owner card/customer missing`,
+        )
+        throw new AppException(errorDictionary.payment.chargePending)
+      }
+      await this.tasksRepository.flagCardActionRequired(task.owner)
+      await notifyClient()
       throw new AppException(errorDictionary.payment.paymentFailed)
     }
+
+    // 5. claim (CAS) before any Stripe call: the race is decided here
+    let startedAt = new Date()
+    const claimed =
+      task.status === 'available' &&
+      (await this.tasksRepository.claimTask({
+        taskId,
+        executorId: userId,
+        startedAt,
+      }))
+
+    if (!claimed) {
+      const current = await this.tasksRepository.fetchClaim(taskId)
+      if (
+        current?.status !== 'in_progress' ||
+        current.executorId !== userId ||
+        !current.startedAt
+      ) {
+        throw new AppException(errorDictionary.tasks.taskNotAvailable)
+      }
+
+      const latest = await this.paymentsRepository.fetchLatestByTaskId(taskId)
+      if (latest?.status === 'succeeded') return { status: 'succeeded' }
+
+      // resume the same claim: same key, same PaymentIntent
+      startedAt = current.startedAt
+    }
+
+    // 6. charge with automatic capture
+    const charged = task.chargedAmount ?? task.offeredPrice
+    const key = `start:${taskId}:${userId}:${startedAt.getTime()}`
+    let paymentIntent: Stripe.PaymentIntent | null = null
+    let outcome: ChargeOutcome
+    let errorType: string | undefined
+
+    try {
+      paymentIntent = await this.stripeService.chargeSavedCard(
+        {
+          amount: toCentavos(charged),
+          customer,
+          paymentMethod: card.stripeCardId,
+          taskId,
+          proxyId: userId,
+          claimedAt: startedAt.toISOString(),
+        },
+        key,
+      )
+      outcome =
+        paymentIntent.status === 'succeeded'
+          ? 'succeeded'
+          : paymentIntent.status === 'processing'
+            ? 'unknown'
+            : 'declined'
+    } catch (error) {
+      errorType = (error as { type?: string } | null)?.type
+      outcome =
+        errorType === 'StripeCardError' ||
+        errorType === 'StripeInvalidRequestError'
+          ? 'declined'
+          : 'unknown'
+    }
+
+    // 7. act on the outcome
+    if (outcome === 'succeeded' && paymentIntent) {
+      const latestCharge = paymentIntent.latest_charge
+      const row = await this.paymentsRepository.recordSucceededCharge({
+        taskId,
+        paymentIntent: paymentIntent.id,
+        amount: charged,
+        chargeId:
+          typeof latestCharge === 'string'
+            ? latestCharge
+            : (latestCharge?.id ?? null),
+      })
+      if (row.taskId !== taskId) {
+        this.logger.error(
+          `start ${taskId}: payment ${paymentIntent.id} belongs to task ${row.taskId}`,
+        )
+      }
+      return { status: 'succeeded' }
+    }
+
+    if (outcome === 'declined') {
+      await this.tasksRepository.releaseClaim({
+        taskId,
+        executorId: userId,
+        startedAt,
+        cardActionOwnerId: task.owner,
+      })
+      await notifyClient()
+      throw new AppException(errorDictionary.payment.paymentFailed)
+    }
+
+    this.logger.error(
+      `start ${taskId}: charge outcome unknown (${errorType ?? paymentIntent?.status}), key ${key}`,
+    )
+    throw new AppException(errorDictionary.payment.chargePending)
   }
 }

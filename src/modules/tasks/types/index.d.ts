@@ -115,9 +115,7 @@ export type StartTaskData = {
   userId: string
 }
 
-export type StartTaskResult =
-  | { status: 'succeeded' }
-  | { status: 'requires_action'; clientSecret: string | null }
+export type StartTaskResult = { status: 'succeeded' }
 
 export type FinishTaskData = {
   taskId: string

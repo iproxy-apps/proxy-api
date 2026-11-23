@@ -5,7 +5,6 @@ import type {
   LinkMerchantAccountData,
   CreateTransferData,
   ChargeSavedCardData,
-  CreatePaymentIntentData,
   CreateMerchantAccountData,
 } from './types'
 
@@ -129,27 +128,6 @@ export class StripeService {
 
   async detachPaymentMethod(paymentMethodId: string) {
     return await this.stripe.paymentMethods.detach(paymentMethodId)
-  }
-
-  async createPaymentIntent({
-    amount,
-    customer,
-    savedCard,
-  }: CreatePaymentIntentData) {
-    return await this.stripe.paymentIntents.create({
-      payment_method_types: ['card'],
-      amount,
-      currency: 'brl',
-      customer,
-      payment_method: savedCard,
-      setup_future_usage: 'off_session',
-    })
-  }
-
-  async confirmPaymentIntent(paymentIntentId: string, savedCard: string) {
-    return await this.stripe.paymentIntents.confirm(paymentIntentId, {
-      payment_method: savedCard,
-    })
   }
 
   async refundPayment(paymentIntentId: string) {

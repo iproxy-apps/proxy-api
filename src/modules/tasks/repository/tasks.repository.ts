@@ -10,6 +10,7 @@ import type {
   ReleaseClaimData,
   RecordTransferData,
   TransitionTaskData,
+  TaskStatus,
   TaskCounterpart,
   FetchTasksResult,
   CreateTaskResult,
@@ -280,6 +281,35 @@ export class TasksRepository implements TasksRepositoryDTO {
         })
       }
       return true
+    })
+  }
+
+  async fetchClaim(taskId: string): Promise<{
+    status: TaskStatus
+    startedAt: Date | null
+    executorId: string | null
+  } | null> {
+    return await this.prisma.$transaction(
+      async (tx) => {
+        const t = await tx.tasks.findUnique({
+          where: { id: taskId },
+          select: { status: true, startedAt: true },
+        })
+        if (!t) return null
+        const m = await tx.userTaskMapping.findUnique({
+          where: { taskId },
+          select: { executorId: true },
+        })
+        return { ...t, executorId: m?.executorId ?? null }
+      },
+      { isolationLevel: 'RepeatableRead' },
+    )
+  }
+
+  async flagCardActionRequired(userId: string): Promise<void> {
+    await this.prisma.users.update({
+      where: { id: userId },
+      data: { cardActionRequired: true },
     })
   }
 

@@ -180,9 +180,16 @@ export const errorDictionary = {
 
   payment: {
     paymentFailed: {
-      message: 'Falha ao processar o pagamento.',
-      statusCode: HttpStatus.PAYMENT_REQUIRED,
+      message: 'Não foi possível cobrar o cliente. Tente outra tarefa.',
+      statusCode: HttpStatus.CONFLICT,
       errorCode: 'PAYMENT_FAILED',
+    } as const,
+
+    chargePending: {
+      message:
+        'Ainda estamos confirmando a cobrança do cliente. Tente novamente em instantes.',
+      statusCode: HttpStatus.CONFLICT,
+      errorCode: 'PAYMENT_PENDING',
     } as const,
 
     transferFailed: {

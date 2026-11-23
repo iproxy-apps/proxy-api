@@ -9,12 +9,6 @@ export type PaymentStatus =
   | 'refunded'
   | 'disputed'
 
-export type CreatePaymentRecordData = {
-  taskId: string
-  paymentIntent: string
-  amount: number
-}
-
 export type PaymentRecord = {
   id: string
   taskId: string

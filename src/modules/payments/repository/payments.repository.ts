@@ -5,7 +5,6 @@ import { PrismaService } from 'src/prisma/prisma.service'
 import type {
   PaymentRecord,
   UpdatePaymentData,
-  CreatePaymentRecordData,
   RecordSucceededChargeData,
 } from '../types'
 import type { PaymentsRepositoryDTO } from '../dtos/payments-repository.dto'
@@ -13,10 +12,6 @@ import type { PaymentsRepositoryDTO } from '../dtos/payments-repository.dto'
 @Injectable()
 export class PaymentsRepository implements PaymentsRepositoryDTO {
   constructor(private prisma: PrismaService) {}
-
-  async createPaymentRecord(data: CreatePaymentRecordData): Promise<void> {
-    await this.prisma.payments.create({ data })
-  }
 
   async fetchPaymentRecord(taskId: string): Promise<PaymentRecord | null> {
     return await this.prisma.payments.findFirst({ where: { taskId } })

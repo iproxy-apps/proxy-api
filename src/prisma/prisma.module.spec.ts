@@ -52,6 +52,6 @@ describe('PrismaModule', () => {
     )
     expect(
       Reflect.getMetadata(MODULE_METADATA.EXPORTS, PaymentsModule),
-    ).toHaveLength(4)
+    ).toHaveLength(3)
   })
 })

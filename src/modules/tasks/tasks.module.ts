@@ -3,6 +3,7 @@ import { MulterModule } from '@nestjs/platform-express'
 
 import { EnvService } from 'src/env/env.service'
 import { StripeModule } from 'src/stripe/stripe.module'
+import { NotificationModule } from 'src/notification/notification.module'
 import { RatingsModule } from '../ratings/ratings.module'
 import { PaymentsModule } from '../payments/payments.module'
 import { TasksRepository } from './repository/tasks.repository'
@@ -39,6 +40,7 @@ import { multerOptions } from 'src/pipes/multer-validation.pipe'
 @Module({
   imports: [
     StripeModule.forRoot(),
+    NotificationModule.forRoot(),
     MulterModule.register(multerOptions),
     RatingsModule,
     PaymentsModule,

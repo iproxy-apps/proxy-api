@@ -1,9 +1,3 @@
-export type CreatePaymentIntentData = {
-  amount: number
-  customer: string
-  savedCard: string
-}
-
 export type CreateMerchantAccountData = {
   email: string
   lastName: string

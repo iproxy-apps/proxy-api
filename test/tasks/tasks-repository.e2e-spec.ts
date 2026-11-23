@@ -111,6 +111,25 @@ describe('TasksRepository / PaymentsRepository (e2e)', () => {
     expect(await ctx.prisma.payments.count({ where: { taskId: t.id } })).toBe(0)
   })
 
+  it('fetchClaim reads status, startedAt and executor in one snapshot', async () => {
+    const t = await createTask(ctx.prisma, owner.id)
+    await expect(repo.fetchClaim(t.id)).resolves.toEqual({
+      status: 'available',
+      startedAt: null,
+      executorId: null,
+    })
+    const startedAt = new Date()
+    await repo.claimTask(claimFor(t.id, proxy.id, startedAt))
+    await expect(repo.fetchClaim(t.id)).resolves.toEqual({
+      status: 'in_progress',
+      startedAt,
+      executorId: proxy.id,
+    })
+    await expect(
+      repo.fetchClaim('00000000-0000-0000-0000-000000000000'),
+    ).resolves.toBeNull()
+  })
+
   it('claimTask returns false and writes nothing when the task is not available', async () => {
     await expect(repo.claimTask(claimFor(task.id))).resolves.toBe(false)
     expect(

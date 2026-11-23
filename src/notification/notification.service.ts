@@ -2,6 +2,13 @@ import { Inject, Injectable } from '@nestjs/common'
 import { SNSClient, PublishCommand } from '@aws-sdk/client-sns'
 import { SESClient, SendEmailCommand } from '@aws-sdk/client-ses'
 
+const escapeHtml = (value: string): string =>
+  value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+
 @Injectable()
 export class NotificationService {
   private ses: SESClient
@@ -60,6 +67,24 @@ export class NotificationService {
         </div>
         <p style="color: #666; font-size: 14px;">Este código expira em <strong>15 minutos</strong>.</p>
         <p style="color: #666; font-size: 14px;">Se você não solicitou esta recuperação, ignore este email.</p>
+      </div>
+    `
+
+    await this.sendEmail(to, subject, body)
+  }
+
+  async sendCardChargeFailedEmail(
+    to: string,
+    userName: string,
+    taskTitle: string,
+  ): Promise<void> {
+    const subject = 'Confirme seu cartão na Carteira - Proxy'
+    const body = `
+      <div style="font-family: Arial, sans-serif; max-width: 480px; margin: 0 auto; padding: 24px;">
+        <h2 style="color: #333;">Confirme seu cartão</h2>
+        <p>Olá, <strong>${escapeHtml(userName)}</strong>!</p>
+        <p>Um Proxy tentou aceitar sua tarefa "<strong>${escapeHtml(taskTitle)}</strong>", mas não conseguimos cobrar seu cartão.</p>
+        <p>Confirme seu cartão na Carteira do app. A tarefa continua disponível.</p>
       </div>
     `
 

@@ -9,6 +9,7 @@ import type {
   CreateTaskResult,
   FetchTaskByIdData,
   FetchTasksQueryData,
+  TaskStatus,
   UpdateTaskStatusData,
   ValidateTaskCompletionData,
   FetchTaskUserMappingQueryData,
@@ -33,5 +34,11 @@ export interface TasksRepositoryDTO {
   transition: (data: TransitionTaskData) => Promise<boolean>
   claimTask: (data: ClaimTaskData) => Promise<boolean>
   releaseClaim: (data: ReleaseClaimData) => Promise<boolean>
+  fetchClaim: (taskId: string) => Promise<{
+    status: TaskStatus
+    startedAt: Date | null
+    executorId: string | null
+  } | null>
+  flagCardActionRequired: (userId: string) => Promise<void>
   recordTransfer: (data: RecordTransferData) => Promise<void>
 }
