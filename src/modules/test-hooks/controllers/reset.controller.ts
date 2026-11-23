@@ -6,7 +6,7 @@ import { TestHooksGuard } from '../test-hooks.guard'
 import { TRUNCATE_TABLES } from '../truncate-tables'
 
 @Controller('/__test/reset')
-@SkipThrottle({ default: true, auth: true })
+@SkipThrottle()
 @UseGuards(TestHooksGuard)
 export class ResetController {
   constructor(private prisma: PrismaService) {}

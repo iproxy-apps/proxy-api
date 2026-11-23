@@ -30,7 +30,7 @@ export class CreateAccountController {
 
   @Post()
   @HttpCode(200)
-  @Throttle({ auth: { limit: 5, ttl: 60_000 } })
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @UsePipes(new ZodValidationPipe(createAccountBodySchema))
   async handle(@Body() body: CreateAccountBodySchema) {
     return await this.createAccountService.execute(body)

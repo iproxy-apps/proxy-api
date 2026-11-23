@@ -30,7 +30,7 @@ const seedUserBodySchema = z
 type SeedUserBodySchema = z.infer<typeof seedUserBodySchema>
 
 @Controller('/__test/seed-user')
-@SkipThrottle({ default: true, auth: true })
+@SkipThrottle()
 @UseGuards(TestHooksGuard)
 export class SeedUserController {
   constructor(private seedUserService: SeedUserService) {}

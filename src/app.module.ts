@@ -26,11 +26,9 @@ import { StripeWebhookModule } from './modules/stripe-webhook/stripe-webhook.mod
     PrismaModule,
 
     ThrottlerModule.forRoot({
-      throttlers: [
-        { name: 'default', ttl: 60_000, limit: 100 },
-        { name: 'auth', ttl: 60_000, limit: 5 },
-      ],
-      skipIf: () => process.env.NODE_ENV === 'test',
+      throttlers: [{ ttl: 60_000, limit: 100 }],
+      skipIf: () =>
+        process.env.NODE_ENV === 'test' || process.env.LOOP_TEST_HOOKS === '1',
     }),
 
     EnvModule,

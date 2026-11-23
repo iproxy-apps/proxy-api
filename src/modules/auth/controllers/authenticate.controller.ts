@@ -18,7 +18,7 @@ export class AuthenticateController {
 
   @Post()
   @HttpCode(200)
-  @Throttle({ auth: { limit: 5, ttl: 60_000 } })
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @UsePipes(new ZodValidationPipe(authenticateBodySchema))
   async handle(@Body() body: AuthenticateBodySchema) {
     const { email, password } = body

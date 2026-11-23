@@ -23,7 +23,7 @@ const markAccountReadyBodySchema = z.object({
 type MarkAccountReadyBodySchema = z.infer<typeof markAccountReadyBodySchema>
 
 @Controller('/__test/mark-account-ready')
-@SkipThrottle({ default: true, auth: true })
+@SkipThrottle()
 @UseGuards(TestHooksGuard)
 export class MarkAccountReadyController {
   constructor(private prisma: PrismaService) {}

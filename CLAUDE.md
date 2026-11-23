@@ -9,7 +9,7 @@ Backend API for a task/service marketplace platform with Stripe-powered payments
 - **ORM**: Prisma 7 with PostgreSQL adapter (`@prisma/adapter-pg`)
 - **Validation**: Zod 4 (does not use class-validator)
 - **Authentication**: JWT RS256 (passport-jwt) with base64-encoded public/private keys; `JwtStrategy.validate` queries `Users.isDeleted` and rejects tokens of removed accounts
-- **Rate limiting**: `@nestjs/throttler` globally (100 req/min default, 5 req/min on `/auth/session` and `/auth/create`). `@SkipThrottle()` on the Stripe webhook controller. Bypassed entirely when `NODE_ENV=test`.
+- **Rate limiting**: `@nestjs/throttler` globally (100 req/min default per route+IP, 5 req/min on `/auth/session`, `/auth/create`, `/auth/forgot-password`, `/auth/verify-reset-code`; `TRUST_PROXY` hops honoured for the client IP). `@SkipThrottle()` on the Stripe webhook controller. Bypassed entirely when `NODE_ENV=test` or `LOOP_TEST_HOOKS=1`.
 - **Payments**: Stripe SDK (Connect with merchant accounts, `stripe.transfers.create` on validate) + webhooks for async state
 - **Notifications**: AWS SES (email) and AWS SNS (SMS) via `@aws-sdk/client-ses` and `@aws-sdk/client-sns` — currently only used by `forgot-password`
 - **Testing**: Jest (unit) + Testcontainers PostgreSQL (e2e) + supertest

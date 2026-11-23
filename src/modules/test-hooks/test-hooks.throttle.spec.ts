@@ -10,9 +10,7 @@ describe('test hooks throttling', () => {
     ['ResetController', ResetController],
     ['SeedUserController', SeedUserController],
     ['MarkAccountReadyController', MarkAccountReadyController],
-  ])('%s skips every named throttler', (_, controller) => {
-    for (const name of ['default', 'auth']) {
-      expect(Reflect.getMetadata(THROTTLER_SKIP + name, controller)).toBe(true)
-    }
+  ])('%s skips the default throttler', (_, controller) => {
+    expect(Reflect.getMetadata(THROTTLER_SKIP + 'default', controller)).toBe(true)
   })
 })
